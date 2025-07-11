@@ -1,58 +1,59 @@
-using NUnit.Framework;
-using System;
 using System.Collections.Generic;
 using System.Linq;
 using UnityEngine;
-using UnityEngine.Rendering;
 
-public enum WorkerStatus
-{
-    Running,AtStation,Free
-}
 public class KitchenManager : MonoBehaviour
 {
     public static KitchenManager instance;
-
     List<Worker> workers;
-    List<Order> ordersInProgress;
-    List<Order> ordersToBeTaken;
-
+    List<Order> orders;
+    List<Station> stations;
 
     void Start()
     {
         instance = this;
         workers = new List<Worker>();
-        ordersInProgress = new List<Order>();
-        ordersToBeTaken = new List<Order>();
+        orders = new List<Order>();
+        stations = new List<Station>();
     }
 
-    void Update()
+    public void RegisterStation(Station station)
     {
-        
+        stations.Add(station);
+    }
+
+    public Station GetStation(StationId stationId)
+    {
+        return stations.FirstOrDefault(s => s.StationId == stationId);
     }
 
     public void addWorker(Worker _worker)
     {
         workers.Add(_worker);
-
     }
 
-    public void EnqueOrder(Order order, Action orderStarted)
+    public void EnqueOrder(Order order)
     {
-
         bool freeWorkerAvailable = workers.Any(worker => worker.currentStatus == WorkerStatus.Free);
 
-        if(freeWorkerAvailable)
+        if (freeWorkerAvailable)
         {
             Worker availableWorker = workers.First(worker => worker.currentStatus == WorkerStatus.Free);
             availableWorker.startOrder(order);
-            orderStarted?.Invoke();
-            ordersInProgress.Add(order);
+
         }
-        else
+        orders.Add(order);
+
+    }
+
+    public void IamFree(Worker worker)
+    {
+        bool orderAvailable = orders.Any(order => order.status == OrderStatus.NotStarted);
+        if (orderAvailable)
         {
-            ordersToBeTaken.Add(order);
-            //TODO keep track of the event orderstarted as well
+            Order pendingOrder = orders.First(order => order.status == OrderStatus.NotStarted);
+            orders.Remove(pendingOrder);
+            worker.startOrder(pendingOrder);
         }
     }
 }
