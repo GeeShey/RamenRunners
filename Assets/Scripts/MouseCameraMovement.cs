@@ -15,6 +15,8 @@ public class MouseCameraMovement: MonoBehaviour
     [Header("Mouse Settings")]
     public int panMouseButton = 0; // 0 = Left, 1 = Right, 2 = Middle
 
+    public Camera secondCam;
+
     private Camera cam;
     private Vector3 lastMousePosition;
     private bool isPanning = false;
@@ -22,7 +24,6 @@ public class MouseCameraMovement: MonoBehaviour
     void Start()
     {
         cam = GetComponent<Camera>();
-
         // Ensure camera is orthographic
         if (!cam.orthographic)
         {
@@ -87,6 +88,8 @@ public class MouseCameraMovement: MonoBehaviour
             newSize = Mathf.Clamp(newSize, minZoom, maxZoom);
 
             cam.orthographicSize = newSize;
+            secondCam.orthographicSize = newSize;
+
         }
     }
 
@@ -95,5 +98,7 @@ public class MouseCameraMovement: MonoBehaviour
     {
         transform.position = new Vector3(0, 0, transform.position.z);
         cam.orthographicSize = 5f; // Default Unity orthographic size
+        secondCam.orthographicSize = 5f; // Default Unity orthographic size
+
     }
 }

@@ -4,21 +4,20 @@ using DG.Tweening;
 public class RobotFloat : MonoBehaviour
 {
     [Header("Float Settings")]
-    public float floatHeight = 0.5f;     // How high/low the robot moves
-    public float floatDuration = 2f;     // Duration for one up/down cycle
-    public Ease floatEase = Ease.InOutSine; // Easing for smooth motion
+    public float floatHeight = 0.5f;          // Vertical float distance
+    public float floatDuration = 2f;          // Duration of one up/down cycle
+    public Ease floatEase = Ease.InOutSine;   // Easing for float motion
 
     [Header("Optional Settings")]
     public bool startOnAwake = true;
-    public bool randomStartOffset = true; // Prevents multiple robots from syncing
+    public bool randomStartOffset = true;     // Prevents sync among robots
 
-    private Vector3 startPos,endPos;
+    private float startY;
     private Tween floatTween;
 
     void Start()
     {
-        // Store the initial position
-        startPos = transform.position;
+        startY = transform.position.y;
 
         if (startOnAwake)
         {
@@ -28,19 +27,21 @@ public class RobotFloat : MonoBehaviour
 
     public void StartFloating()
     {
-        // Kill any existing tween
+        // Kill existing tween
         if (floatTween != null)
         {
             floatTween.Kill();
         }
 
-        // Reset to start position
-        //transform.position = startPos;
-        endPos = startPos + Vector3.up * floatHeight;
+        float targetY = startY + floatHeight;
 
-        transform.DOMove(endPos, floatDuration)
-            .SetLoops(-1, LoopType.Yoyo) // Infinite yoyo loop
-            .SetEase(Ease.InOutSine);
+        // Apply random delay to desync floating robots
+        float delay = randomStartOffset ? Random.Range(0f, floatDuration) : 0f;
+
+        floatTween = transform.DOMoveY(targetY, floatDuration)
+            .SetLoops(-1, LoopType.Yoyo)
+            .SetEase(floatEase)
+            .SetDelay(delay);
     }
 
     public void StopFloating()
@@ -51,13 +52,12 @@ public class RobotFloat : MonoBehaviour
             floatTween = null;
         }
 
-        // Optionally return to start position
-        transform.DOMoveY(startPos.y, 0.5f).SetEase(Ease.OutQuad);
+        // Return to original Y position
+        transform.DOMoveY(startY, 0.5f).SetEase(Ease.OutQuad);
     }
 
     void OnDestroy()
     {
-        // Clean up tween when object is destroyed
         if (floatTween != null)
         {
             floatTween.Kill();
@@ -66,7 +66,6 @@ public class RobotFloat : MonoBehaviour
 
     void OnDisable()
     {
-        // Pause tween when object is disabled
         if (floatTween != null && floatTween.IsActive())
         {
             floatTween.Pause();
@@ -75,7 +74,6 @@ public class RobotFloat : MonoBehaviour
 
     void OnEnable()
     {
-        // Resume tween when object is re-enabled
         if (floatTween != null && floatTween.IsActive())
         {
             floatTween.Play();

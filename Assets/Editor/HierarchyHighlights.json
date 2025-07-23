@@ -1,0 +1,26 @@
+{
+    "elements": [
+        {
+            "label": "DevHelper",
+            "backgroundColorR": 1.0,
+            "backgroundColorG": 0.9215686321258545,
+            "backgroundColorB": 0.01568627543747425,
+            "backgroundColorA": 1.0,
+            "textColorR": 0.0,
+            "textColorG": 0.0,
+            "textColorB": 0.0,
+            "textColorA": 1.0
+        },
+        {
+            "label": "Main Camera",
+            "backgroundColorR": 0.2161814272403717,
+            "backgroundColorG": 1.0,
+            "backgroundColorB": 0.0156862735748291,
+            "backgroundColorA": 1.0,
+            "textColorR": 0.0,
+            "textColorG": 0.0,
+            "textColorB": 0.0,
+            "textColorA": 1.0
+        }
+    ]
+}

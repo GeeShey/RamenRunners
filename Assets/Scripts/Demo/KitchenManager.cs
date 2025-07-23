@@ -34,11 +34,11 @@ public class KitchenManager : MonoBehaviour
 
     public void EnqueOrder(Order order)
     {
-        bool freeWorkerAvailable = workers.Any(worker => worker.currentStatus == WorkerStatus.Free);
+        bool freeWorkerAvailable = workers.Any(worker => worker.isFree());
 
         if (freeWorkerAvailable)
         {
-            Worker availableWorker = workers.First(worker => worker.currentStatus == WorkerStatus.Free);
+            Worker availableWorker = workers.First(worker => worker.isFree());
             availableWorker.startOrder(order);
 
         }
@@ -46,7 +46,7 @@ public class KitchenManager : MonoBehaviour
 
     }
 
-    public void IamFree(Worker worker)
+    public bool GiveMeOrder(Worker worker)
     {
         bool orderAvailable = orders.Any(order => order.status == OrderStatus.NotStarted);
         if (orderAvailable)
@@ -54,6 +54,11 @@ public class KitchenManager : MonoBehaviour
             Order pendingOrder = orders.First(order => order.status == OrderStatus.NotStarted);
             orders.Remove(pendingOrder);
             worker.startOrder(pendingOrder);
+            return true;
+        }
+        else
+        {
+            return false;
         }
     }
 }
