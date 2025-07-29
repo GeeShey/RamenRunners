@@ -34,6 +34,8 @@ public class CarManager : MonoBehaviour
 
     public Action orderSlotJustOpened;
 
+    public bool DEBUG;
+
     public void InitializeNewCar(Order order)
     {
 

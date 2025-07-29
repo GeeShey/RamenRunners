@@ -16,7 +16,6 @@ public class Car : MonoBehaviour
         if (CarManager.instance.OrderSlotAvailable())
         {
 
-            Debug.Log("Order Slot is available");
             StartCoroutine(OrderLoop());
 
         }

@@ -5,9 +5,9 @@ using UnityEngine;
 public class KitchenManager : MonoBehaviour
 {
     public static KitchenManager instance;
-    List<Worker> workers;
-    List<Order> orders;
-    List<Station> stations;
+    public List<Worker> workers;
+    public List<Order> orders;
+    public List<Station> stations;
 
     void Start()
     {
@@ -60,5 +60,11 @@ public class KitchenManager : MonoBehaviour
         {
             return false;
         }
+    }
+
+    public Worker getWorker()
+    {
+        return null;
+
     }
 }

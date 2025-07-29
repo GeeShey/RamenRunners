@@ -1,5 +1,8 @@
 using System.Collections.Generic;
 using UnityEngine;
+using System.Linq;
+using System;
+
 
 public class Station : MonoBehaviour
 {
@@ -9,39 +12,55 @@ public class Station : MonoBehaviour
     public StationId StationId;
 
     private Dictionary<Transform, Worker> occupiedSlots = new Dictionary<Transform, Worker>();
+    private List<Action<Transform>> waitingQueue = new List<Action<Transform>>();
+
 
     void Start()
     {
         KitchenManager.instance.RegisterStation(this);
-        MovementManager.instance.RegisterLocations(standingLocations);
 
     }
 
-    public Transform GetAvailableStandingLocation()
+    public Transform ReserveAvailableStandingLocation( Worker worker)
     {
         foreach (Transform location in standingLocations)
         {
             if (!occupiedSlots.ContainsKey(location))
             {
+                occupiedSlots[location] = worker;
                 return location;
             }
         }
+        Debug.Log("no standing location available");
         return null; // No available spots
     }
 
-    public void ReserveStandingLocation(Transform location, Worker worker)
+    public void ReserveUnavailableStandingLocation(Action<Transform> onSlotFreed)
     {
-        if (!occupiedSlots.ContainsKey(location))
-        {
-            occupiedSlots[location] = worker;
-        }
+        waitingQueue.Add(onSlotFreed);
     }
 
-    public void ReleaseStandingLocation(Transform location)
+    //THIS IS USED BY THE BOTS TO WAIT
+    public Transform GetDefaultSlot()
     {
-        if (occupiedSlots.ContainsKey(location))
+        return standingLocations[0];
+    }
+
+    public void ReleaseStandingLocation(Worker worker)
+    {
+        if (occupiedSlots.ContainsValue(worker))
         {
-            occupiedSlots.Remove(location);
+            Transform slotToRemove = occupiedSlots.FirstOrDefault(x => x.Value == worker).Key;
+            occupiedSlots.Remove(slotToRemove);
+
+            if (waitingQueue.Count > 0)
+            {
+                //tell this worker that the slot is free
+                Action<Transform> firstAction= waitingQueue[0];
+                waitingQueue.RemoveAt(0);
+                firstAction?.Invoke(slotToRemove);
+            }
+
         }
     }
 

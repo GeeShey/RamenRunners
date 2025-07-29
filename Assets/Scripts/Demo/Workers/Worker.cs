@@ -2,14 +2,17 @@ using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.UI;
-using UnityEngine.Splines;
-using UnityEditor.UIElements;
-using System.Threading;
 using System;
 
 public enum WorkerStatus
 {
     Running, AtStation
+}
+
+public static class WorkerBaseStats
+{
+    public static float movementSpeed = 2;
+    public static float stationEfficiency = 1;
 }
 
 public class Worker : MonoBehaviour
@@ -19,6 +22,7 @@ public class Worker : MonoBehaviour
     public float movementSpeed;
     public float stationEfficiency;
     public List<Utensil> equippedUtensils;
+    public int FinishedOrdersCount;
 
     //WORKER TRACKERS
     public StationId currentStationId;//when running this value is the destination. When at station this stores the station where the worker is working
@@ -33,17 +37,23 @@ public class Worker : MonoBehaviour
     public bool interruptMovementFlag = false;
     public Action postInterruptAction;
 
+
     [Header("UI")]
     //UI
     public Image stationProgress;
     public float fillInterval = 1.0f;
 
+    private float bonusReduction = 0f;
+    private WokerVFXManager vfxManager;
 
 
 
     void Start()
     {
         KitchenManager.instance.addWorker(this);
+        vfxManager = GetComponent<WokerVFXManager>();
+        movementSpeed = WorkerBaseStats.movementSpeed;
+        stationEfficiency = WorkerBaseStats.stationEfficiency;
     }
 
     public void startOrder(Order order)
@@ -57,7 +67,7 @@ public class Worker : MonoBehaviour
             postInterruptAction = () =>
             {
                 PreProcessOrder(order);
-                StartCoroutine(workLoop(currentOrder,false));
+                StartCoroutine(workLoop(currentOrder));
             };
         }
         else
@@ -107,6 +117,7 @@ public class Worker : MonoBehaviour
     {
         currentOrder.status = OrderStatus.Completed;
         currentOrder.orderHanded?.Invoke();
+        FinishedOrdersCount++;
         if (!KitchenManager.instance.GiveMeOrder(this))
         {
             Rest();
@@ -130,23 +141,14 @@ public class Worker : MonoBehaviour
         // Ensure it's exactly 1.0 at the end
         stationProgress.fillAmount = 1.0f;
     }
-    private IEnumerator workLoop(Order order, bool startingFromStation = true)
+    private IEnumerator workLoop(Order order)
     {
         //Ensure that we start at check in counter
         if (stationsCompletedCount == 0 && currentStationId != StationId.CheckIn)
         {
-            //IDEALLY YOU WANT ONE FUNCTION TO FACILITATE THE MOVEMENT 
-            //BUT FOR NOW WE SHALL USE WORKAROUNDS
-            if (startingFromStation)
-            {
-                yield return StartCoroutine(MoveFromStationToStation(StationId.CheckIn));                
-            }
-            else
-            {
-                yield return StartCoroutine(MoveFromCurrentPlaceToStation(StationId.CheckIn));
-            }
+            yield return StartCoroutine(MoveFromCurrentPlaceToStation(StationId.CheckIn));
+            
         }
-
 
         currentWorkStation = KitchenManager.instance.GetStation(order.requiredStations[stationsCompletedCount]);
 
@@ -154,8 +156,9 @@ public class Worker : MonoBehaviour
 
         PreStationChecks();
 
-        StartCoroutine(barFill(waitTime));
-        yield return new WaitForSeconds(waitTime);
+        yield return StartCoroutine(CountdownCoroutine(waitTime));
+        //StartCoroutine(barFill(waitTime));
+        //yield return new WaitForSeconds(waitTime);
 
         PostStationChecks();
 
@@ -169,7 +172,7 @@ public class Worker : MonoBehaviour
         {
             
             stationsCompletedCount++;
-            yield return StartCoroutine(MoveFromStationToStation(order.requiredStations[stationsCompletedCount]));
+            yield return StartCoroutine(MoveFromCurrentPlaceToStation(order.requiredStations[stationsCompletedCount]));
             StartCoroutine(workLoop(order));
         }
 
@@ -178,100 +181,148 @@ public class Worker : MonoBehaviour
         yield return null;
     }
 
-    //THESE MOVEMENT FUNCTIONS ASSUME THAT YOU HAVE CHECKED FOR FREE SLOTS
-    private IEnumerator MoveFromStationToStation(StationId destinationStationId)
+    //bonus is in seconds
+    public void OnWorkerClicked(float bonus = 0.5f)
     {
-        bool reversed = false;
-        GameObject path = MovementManager.instance.GetPathObject(currentStationId, destinationStationId, ref reversed);
+        if(currentStatus == WorkerStatus.AtStation && currentStationId != StationId.Rest)
+        {
+            bonusReduction = bonus;
+            
+        }
+    }
 
-        // Get the SplineContainer component, then access its Spline
-        SplineContainer splineContainer = path.GetComponent<SplineContainer>();
-        Spline pathSpline = splineContainer.Spline;
+    private IEnumerator CountdownCoroutine(float waitTime)
+    {
+        float currentTime = waitTime;
+        stationProgress.fillAmount = 0;
 
-        float distance = pathSpline.GetLength();
+
+        while (currentTime > 0f)
+        {
+            // Calculate the reduction for this frame
+            float frameReduction = Time.deltaTime;
+
+            // Add any bonus reduction that was triggered
+            if (bonusReduction > 0f)
+            {
+                frameReduction += bonusReduction;
+                bonusReduction = 0f; // Reset after using it
+                vfxManager.onClicked();
+            }
+            currentTime -= frameReduction;
+            currentTime = Mathf.Max(0f, currentTime);
+
+            float percentComplete = (waitTime - currentTime) / waitTime;
+            stationProgress.fillAmount = percentComplete;
+            yield return null; // Wait for next frame
+        }
+        stationProgress.fillAmount = 1;
+    }
+
+    //THESE MOVEMENT FUNCTIONS ASSUME THAT YOU HAVE CHECKED FOR FREE SLOTS
+    private IEnumerator MoveFromCurrentPlaceToStation(StationId destinationStationId)
+    {
+        // Release current station if at one
+        if (currentStatus == WorkerStatus.AtStation)
+        {
+            KitchenManager.instance.GetStation(currentStationId).ReleaseStandingLocation(this);
+        }
+
+        Vector3 startingPos = transform.position;
+        Station destinationStation = KitchenManager.instance.GetStation(destinationStationId);
+        Transform slotTransform = destinationStation.ReserveAvailableStandingLocation(this);
+        currentStationId = destinationStationId;
+
+        if (slotTransform != null)
+        {
+            // Direct movement to available slot
+            yield return StartCoroutine(MoveDirectlyToSlot(startingPos, slotTransform.position));
+        }
+        else
+        {
+            // Movement with waiting for slot to become available
+            yield return StartCoroutine(MoveWithWaitingForSlot(startingPos, destinationStation));
+        }
+    }
+
+    private IEnumerator MoveDirectlyToSlot(Vector3 startPos, Vector3 endPos)
+    {
+        float distance = (startPos - endPos).magnitude;
         float timeToDestination = distance / movementSpeed;
         float percentCompleted = 0.0f;
         float startTime = Time.time;
 
-        ///START HERE
-        //MOVEMENT FLOW
-        currentStationId = destinationStationId;
-        if (!reversed)
+        while (percentCompleted < 1.0f && !interruptMovementFlag)
         {
-            // Start at spline position 0 and move to position 1
-            transform.position = pathSpline.EvaluatePosition(0.0f);
-            while (percentCompleted < 1.0f && !interruptMovementFlag)
-            {
-                float elapsedTime = Time.time - startTime;
-                percentCompleted = elapsedTime / timeToDestination;
-                // Clamp to ensure we don't go past 1.0
-                percentCompleted = Mathf.Clamp01(percentCompleted);
-                // Move along the spline
-                transform.position = pathSpline.EvaluatePosition(percentCompleted);
-                currentStatus = WorkerStatus.Running;
-                yield return null; // Wait for next frame
-            }
-        }
-        else
-        {
-            // Start at spline position 1 and move to position 0
-            transform.position = pathSpline.EvaluatePosition(1.0f);
-            while (percentCompleted < 1.0f && !interruptMovementFlag)
-            {
-                float elapsedTime = Time.time - startTime;
-                percentCompleted = elapsedTime / timeToDestination;
-                // Clamp to ensure we don't go past 1.0
-                percentCompleted = Mathf.Clamp01(percentCompleted);
-                // Move along the spline in reverse (1.0 to 0.0)
-                float splinePosition = 1.0f - percentCompleted;
-                transform.position = pathSpline.EvaluatePosition(splinePosition);
-                currentStatus = WorkerStatus.Running;
-                yield return null; // Wait for next frame
-            }
-
+            float elapsedTime = Time.time - startTime;
+            percentCompleted = elapsedTime / timeToDestination;
+            percentCompleted = Mathf.Clamp01(percentCompleted);
+            transform.position = Vector3.Lerp(startPos, endPos, percentCompleted);
+            currentStatus = WorkerStatus.Running;
+            yield return null;
         }
 
-        if (interruptMovementFlag) 
+        if (interruptMovementFlag)
         {
-            //reset the flag
             interruptMovementFlag = false;
             postInterruptAction?.Invoke();
             postInterruptAction = null;
         }
         else
         {
-            currentStatus = WorkerStatus.AtStation;            
+            currentStatus = WorkerStatus.AtStation;
         }
     }
 
-    private IEnumerator MoveFromCurrentPlaceToStation(StationId destinationStationId)
+    private IEnumerator MoveWithWaitingForSlot(Vector3 startPos, Station destinationStation)
     {
-        Vector3 startingPos = transform.position;
-        Vector3 endPos = KitchenManager.instance.GetStation(destinationStationId).GetAvailableStandingLocation().position;
-        float distance = (startingPos - endPos).magnitude;
+        Vector3 defaultSlotPos = destinationStation.GetDefaultSlot().position;
+        float distance = (startPos - defaultSlotPos).magnitude;
         float timeToDestination = distance / movementSpeed;
         float percentCompleted = 0.0f;
         float startTime = Time.time;
 
-        ///START HERE
-        //MOVEMENT FLOW
-        currentStationId = destinationStationId;
-        while (percentCompleted < 1.0f && !interruptMovementFlag)
+        // Set up waiting mechanism for slot
+        Transform freedSlot = null;
+        Action<Transform> onSlotFreed = (Transform slot) => {
+            freedSlot = slot;
+        };
+        destinationStation.ReserveUnavailableStandingLocation(onSlotFreed);
+
+        // Move halfway to default slot
+        while (percentCompleted <= 0.5f)
         {
             float elapsedTime = Time.time - startTime;
             percentCompleted = elapsedTime / timeToDestination;
-            // Clamp to ensure we don't go past 1.0
             percentCompleted = Mathf.Clamp01(percentCompleted);
-            //TODO
-            // Move along the path using above information
-            transform.position = Vector3.Lerp(startingPos, endPos, percentCompleted);
+            transform.position = Vector3.Lerp(startPos, defaultSlotPos, percentCompleted);
             currentStatus = WorkerStatus.Running;
-            yield return null; // Wait for next frame
+            yield return null;
+        }
+
+        // Wait for slot to become available
+        yield return new WaitUntil(() => freedSlot != null);
+
+        // Move from current position to the freed slot
+        Vector3 currentPos = transform.position;
+        Vector3 endPos = freedSlot.position;
+        float remainingDistance = (currentPos - endPos).magnitude;
+        float remainingTime = remainingDistance / movementSpeed;
+        float secondPhasePercent = 0.0f;
+        float secondPhaseStartTime = Time.time;
+
+        while (secondPhasePercent < 1.0f && !interruptMovementFlag)
+        {
+            float elapsedTime = Time.time - secondPhaseStartTime;
+            secondPhasePercent = elapsedTime / remainingTime;
+            secondPhasePercent = Mathf.Clamp01(secondPhasePercent);
+            transform.position = Vector3.Lerp(currentPos, endPos, secondPhasePercent);
+            currentStatus = WorkerStatus.Running;
+            yield return null;
         }
 
         if (interruptMovementFlag)
         {
-            //reset the flag
             interruptMovementFlag = false;
             postInterruptAction?.Invoke();
             postInterruptAction = null;
@@ -285,7 +336,7 @@ public class Worker : MonoBehaviour
 
     public void Rest()
     {
-        StartCoroutine(MoveFromStationToStation(StationId.Rest));
+        StartCoroutine(MoveFromCurrentPlaceToStation(StationId.Rest));
     }
 
     public bool isFree()

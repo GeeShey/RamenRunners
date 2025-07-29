@@ -1,4 +1,6 @@
 using System;
+using System.Collections.Generic;
+using System.Linq;
 using UnityEngine;
 
 public enum StationId
@@ -39,7 +41,7 @@ public class Order
 public class OrderManager : MonoBehaviour
 {
     public static OrderManager instance;
-    DishSO[] DishDefinitions;
+    DishSo[] DishDefinitions;
     private KitchenManager kitchenManager;
 
     void Start()
@@ -47,7 +49,7 @@ public class OrderManager : MonoBehaviour
         instance = this;
         kitchenManager = KitchenManager.instance;
         //Load all the dish definitions
-        DishDefinitions = Resources.LoadAll<DishSO>("Dishes");
+        DishDefinitions = Resources.LoadAll<DishSo>("Dishes");
         //create a random order, give it to the kitchen manager
     }
 
@@ -67,11 +69,28 @@ public class OrderManager : MonoBehaviour
 
     }
 
+    private List<StationId> getRandomStations()
+    {
+        StationId[] availableStations = { StationId.Pantry, StationId.Cold, StationId.Hot, StationId.Frier, StationId.Assembly };
+        // Create a random number generator
+        System.Random random = new System.Random();
+        // Determine how many middle stations to include (1 to all available stations)
+        int middleStationCount = random.Next(1, availableStations.Length + 1);
+        // Shuffle the available stations and take the required number
+        StationId[] shuffledStations = availableStations.OrderBy(x => random.Next()).Take(middleStationCount).ToArray();
+        // Build the final station list: CheckIn + random middle stations + CheckOut
+        List<StationId> finalStations = new List<StationId>();
+        finalStations.Add(StationId.CheckIn);           // Always first
+        finalStations.AddRange(shuffledStations);       // Random middle stations
+        finalStations.Add(StationId.CheckOut);          // Always last
+        return finalStations;
+    }
+
     public Order createRandomOrder()
     {
         Order order = new Order();
         order.id = "OD001";
-        order.requiredStations = new StationId[] { StationId.CheckIn, StationId.Frier,  StationId.CheckOut };
+        order.requiredStations = getRandomStations().ToArray();
         order.customerWaitTime = 300;
         order.status = OrderStatus.NotStarted;
         order.completionPercentage = 0f;

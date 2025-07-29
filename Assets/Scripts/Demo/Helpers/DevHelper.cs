@@ -25,7 +25,7 @@ public class DevHelper : MonoBehaviour
 
             for (int i = 0; i < workers.Count(); i++)
             {
-                Transform slot = restStation.GetAvailableStandingLocation();
+                Transform slot = restStation.ReserveAvailableStandingLocation(workers[i].GetComponent<Worker>());
                 workers[i].transform.position = slot.position;
                 workers[i].GetComponent<Worker>().InitializeWorker();
             }

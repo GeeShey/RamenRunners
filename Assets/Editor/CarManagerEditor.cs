@@ -29,17 +29,13 @@ public class CarManagerEditor : Editor
             carManager.InitializeNewCar();
         }
 
+        if (!carManager.DEBUG)
+            return;
         // Add some space
         EditorGUILayout.Space(10);
 
         // Draw custom car slots visualization
         DrawCarSlotsVisualization();
-
-        // Repaint to keep the inspector updated in real-time
-        if (Application.isPlaying)
-        {
-            Repaint();
-        }
     }
 
     private void InitializeStyles()

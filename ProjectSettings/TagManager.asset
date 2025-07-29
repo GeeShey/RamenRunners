@@ -5,6 +5,7 @@ TagManager:
   serializedVersion: 3
   tags:
   - Worker
+  - Station
   layers:
   - Default
   - TransparentFX
