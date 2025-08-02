@@ -12,7 +12,7 @@ public enum WorkerStatus
 public static class WorkerBaseStats
 {
     public static float movementSpeed = 2;
-    public static float stationEfficiency = 1;
+    public static float stationEfficiency = 0.1f;
 }
 
 public class Worker : MonoBehaviour
@@ -67,13 +67,13 @@ public class Worker : MonoBehaviour
             postInterruptAction = () =>
             {
                 PreProcessOrder(order);
-                StartCoroutine(workLoop(currentOrder));
+                StartCoroutine(workLoop(order));
             };
         }
         else
         {
             PreProcessOrder(order);
-            StartCoroutine(workLoop(currentOrder));
+            StartCoroutine(workLoop(order));
         }
 
 
@@ -82,10 +82,12 @@ public class Worker : MonoBehaviour
     private void PreProcessOrder(Order order)
     {
         currentOrder = order;
+        //currentOrder.dish.requiredStations.Insert(0,StationId.CheckIn);
+        //currentOrder.dish.requiredStations.Add(StationId.CheckOut);
         currentOrder.status = OrderStatus.InProgress;
         currentOrder.orderStartTime = Time.time;
         stationsCompletedCount = 0;
-        requiredStationsCount = order.requiredStations.Length;
+        requiredStationsCount = order.dish.requiredStations.Count;
     }
     private void PreStationChecks()
     {
@@ -143,22 +145,27 @@ public class Worker : MonoBehaviour
     }
     private IEnumerator workLoop(Order order)
     {
+
         //Ensure that we start at check in counter
-        if (stationsCompletedCount == 0 && currentStationId != StationId.CheckIn)
+        if (stationsCompletedCount == 0)
         {
             yield return StartCoroutine(MoveFromCurrentPlaceToStation(StationId.CheckIn));
-            
+
         }
 
-        currentWorkStation = KitchenManager.instance.GetStation(order.requiredStations[stationsCompletedCount]);
+        if (stationsCompletedCount == order.dish.requiredStations.Count)
+        {
+            yield return StartCoroutine(MoveFromCurrentPlaceToStation(StationId.CheckOut));
+
+        }
+
+        currentWorkStation = KitchenManager.instance.GetStation(order.dish.requiredStations[stationsCompletedCount]);
 
         float waitTime = currentWorkStation.stationTime;
 
         PreStationChecks();
 
-        yield return StartCoroutine(CountdownCoroutine(waitTime));
-        //StartCoroutine(barFill(waitTime));
-        //yield return new WaitForSeconds(waitTime);
+        yield return StartCoroutine(CountdownCoroutine(Mathf.Lerp(waitTime, 0.1f, stationEfficiency)));
 
         PostStationChecks();
 
@@ -172,7 +179,7 @@ public class Worker : MonoBehaviour
         {
             
             stationsCompletedCount++;
-            yield return StartCoroutine(MoveFromCurrentPlaceToStation(order.requiredStations[stationsCompletedCount]));
+            yield return StartCoroutine(MoveFromCurrentPlaceToStation(order.dish.requiredStations[stationsCompletedCount]));
             StartCoroutine(workLoop(order));
         }
 
@@ -222,6 +229,10 @@ public class Worker : MonoBehaviour
     //THESE MOVEMENT FUNCTIONS ASSUME THAT YOU HAVE CHECKED FOR FREE SLOTS
     private IEnumerator MoveFromCurrentPlaceToStation(StationId destinationStationId)
     {
+        if(destinationStationId == currentStationId)
+        {
+            yield return null;
+        }
         // Release current station if at one
         if (currentStatus == WorkerStatus.AtStation)
         {
