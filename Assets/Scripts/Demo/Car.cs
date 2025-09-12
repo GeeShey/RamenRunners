@@ -36,7 +36,7 @@ public class Car : MonoBehaviour
         {
             if (order != null && order.assignedWorker != null)
             {
-                //draw line from car to worker
+                //draw line from car to ItemOwner
                 lineRenderer.positionCount = 2;
                 lineRenderer.SetPosition(0, transform.position);
                 lineRenderer.SetPosition(1, order.assignedWorker.transform.position);

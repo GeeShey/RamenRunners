@@ -26,7 +26,7 @@ public class Order
 
 
     //EVENTS
-    public Action orderRequested;//this is invoked when the worker has finished taking the order from the customer
+    public Action orderRequested;//this is invoked when the ItemOwner has finished taking the order from the customer
     public Action orderStarted;
     public Action orderPrepared;
     public Action orderHanded;

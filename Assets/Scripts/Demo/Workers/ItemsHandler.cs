@@ -5,6 +5,11 @@ using System;
 
 public class ItemsHandler : MonoBehaviour
 {
+    private Worker worker;
+    private void Start()
+    {
+        worker = GetComponent<Worker>();
+    }
     public Dictionary<string, Component> itemDictionary = new Dictionary<string, Component>();
     public void EquipItem(string id)
     {
@@ -18,7 +23,7 @@ public class ItemsHandler : MonoBehaviour
         {
             Component itemComponent = ItemFactory.instance.AddItemTo(gameObject, id);
             itemInstance = itemComponent as Item;
-            itemInstance.PreLoad();
+            itemInstance.PreLoad(worker);
 
             if (itemComponent != null)
             {

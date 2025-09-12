@@ -4,11 +4,19 @@ using UnityEngine;
 public abstract class Item : MonoBehaviour
 {
     public ItemBasicDetailsSO ItemBasicDetails;
+    public Worker ItemOwner;
+    public int currentStackCount = 0;
 
     public int StackCount;
-    public abstract void PreLoad();
+    public virtual void PreLoad(Worker _ItemOwner)
+    {
+        ItemOwner = _ItemOwner;
+    }
 
     //count can be negative
-    public abstract void OnStackModified(int count);
+    public virtual void OnStackModified(int count)
+    {
+        currentStackCount += count;
+    }
 
 }

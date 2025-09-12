@@ -18,132 +18,318 @@ public static class WorkerBaseStats
 
 public class Worker : MonoBehaviour
 {
-
+    #region Worker Stats
     //WORKER STATS
     public float CurrentMovementSpeed;
     public float CurrentStationEfficiency;
     public List<Utensil> equippedUtensils;
     public int FinishedOrdersCount;
+    #endregion
 
+    #region Worker Trackers
     //WORKER TRACKERS
-    public StationId currentStationId;//when running this value is the destination. When at station this stores the station where the worker is working
+    public StationId currentStationId; //when running this value is the destination. When at station this stores the station where the ItemOwner is working
     public WorkerStatus currentStatus;
     private Order currentOrder;
-    private int stationsCompletedCount;//this keeps track of which station the worker is in, out of all the statiosn that he has to go to
+    private int stationsCompletedCount; //this keeps track of which station the ItemOwner is in, out of all the stations that he has to go to
     private Station currentWorkStation;
     private int requiredStationsCount;
+    #endregion
 
+    #region Movement Variables
     //MOVEMENT VARS
     [NonSerialized]
     public bool interruptMovementFlag = false;
     public Action postInterruptAction;
     public delegate IEnumerator MovementMethod(StationId stationId);
     public MovementMethod CurrentMovementMethod;
+    #endregion
 
+    #region UI Components
     [Header("UI")]
     //UI
     public Image stationProgress;
     public float fillInterval = 1.0f;
+    #endregion
 
+    #region Private Fields
     private float bonusReduction = 0f;
     private WokerVFXManager vfxManager;
+    #endregion
 
+    #region Events
     //HELPERS FOR OTHER CLASSES
     public Action<string> onPrepStarted;
     public Action<string> onMovementStarted;
+    //FUNC IS BASICALLY AN ACTION BUT RETURNS A VALUE WHEN YOU CALL INVOKE()
+    public Func<IEnumerator> initializeMovementMethod;
 
+    #endregion
+
+    #region Debug
     //DEBUG
     public DishSo currentDish;
+    #endregion
 
-
+    #region Unity Lifecycle
     void Start()
+    {
+        InitializeWorkerComponents();
+        InitializeWorkerStats();
+        InitializeExternalSystems();
+    }
+    #endregion
+
+    #region Initialization
+    private void InitializeWorkerComponents()
     {
         KitchenManager.instance.addWorker(this);
         vfxManager = GetComponent<WokerVFXManager>();
+    }
+
+    private void InitializeWorkerStats()
+    {
         CurrentMovementSpeed = WorkerBaseStats.movementSpeed;
         CurrentStationEfficiency = WorkerBaseStats.stationEfficiency;
         CurrentMovementMethod = NormalMove;
-        CarManager.instance.InitializeNewCar();
     }
 
-    public void startOrder(Order order)
+    private void InitializeExternalSystems()
     {
-        order.assignedWorker = this;
-        currentDish = order.dish;
-        //worker was going to rest UNIQUE SCENARIO
-        if (currentStationId == StationId.Rest && currentStatus == WorkerStatus.Running)
-        {
+        CarManager.instance.InitializeNewCar();
+    }
+    #endregion
 
-            Debug.Log("interrupted");
-            interruptMovementFlag = true;
-            postInterruptAction = () =>
-            {
-                PreProcessOrder(order);
-                StartCoroutine(workLoop(order));
-            };
+    #region Order Management
+    public void startOrder(Order orderToStart)
+    {
+        orderToStart.assignedWorker = this;
+        currentDish = orderToStart.dish;
+
+        if (ShouldInterruptCurrentMovement())
+        {
+            HandleMovementInterruption(orderToStart);
         }
         else
         {
-            PreProcessOrder(order);
-            StartCoroutine(workLoop(order));
+            StartOrderDirectly(orderToStart);
         }
-
-
     }
 
-    private void PreProcessOrder(Order order)
+    private bool ShouldInterruptCurrentMovement()
     {
-        currentOrder = order;
+        return currentStationId == StationId.Rest && currentStatus == WorkerStatus.Running;
+    }
 
+    private void HandleMovementInterruption(Order orderToStart)
+    {
+        Debug.Log("interrupted");
+        interruptMovementFlag = true;
+        postInterruptAction = () =>
+        {
+            PreProcessOrder(orderToStart);
+            StartCoroutine(workLoop(orderToStart));
+        };
+    }
+
+    private void StartOrderDirectly(Order orderToStart)
+    {
+        PreProcessOrder(orderToStart);
+        StartCoroutine(workLoop(orderToStart));
+    }
+
+    private void PreProcessOrder(Order orderToProcess)
+    {
+        currentOrder = orderToProcess;
+        SetOrderInProgress();
+        ResetOrderCounters();
+    }
+
+    private void SetOrderInProgress()
+    {
         currentOrder.status = OrderStatus.InProgress;
         currentOrder.orderStartTime = Time.time;
+    }
+
+    private void ResetOrderCounters()
+    {
         stationsCompletedCount = 0;
-        requiredStationsCount = order.dish.requiredStations.Count;
-    }
-    private void PreStationChecks()
-    {
-
-        if (stationsCompletedCount == 1)
-        {
-            currentOrder.orderStarted?.Invoke();
-        }
-    }
-
-    private void PostStationChecks()
-    {
-        if (currentStationId == StationId.CheckIn)
-        {
-            currentOrder.orderRequested?.Invoke();
-        }
-        else if (stationsCompletedCount == requiredStationsCount - 2)
-        {
-            currentOrder.orderPrepared?.Invoke();
-        }
+        requiredStationsCount = currentOrder.dish.requiredStations.Count;
     }
 
     private void OrderComplete()
     {
+        FinalizeOrderStatus();
+        ProcessOrderPayment();
+        UpdateWorkerStats();
+        AssignNextOrderOrRest();
+    }
+
+    private void FinalizeOrderStatus()
+    {
         currentOrder.status = OrderStatus.Completed;
         currentOrder.orderHanded?.Invoke();
+    }
+
+    private void ProcessOrderPayment()
+    {
         CurrencyManager.instance.addFunds(currentOrder.dish.itemPrice);
+    }
+
+    private void UpdateWorkerStats()
+    {
         FinishedOrdersCount++;
+    }
+
+    private void AssignNextOrderOrRest()
+    {
         if (!KitchenManager.instance.GiveMeOrder(this))
         {
             Rest();
         }
         //CurrencyFallingEffectController.instance.activateEffect();
     }
+    #endregion
 
-    private IEnumerator barFill(float seconds, bool reverse = false)
+    #region Station Processing
+    private void PreStationChecks()
     {
-        float percentComplete = 0;
-        float elapsedTime = 0;
-
-        while (percentComplete < 1.0f)
+        if (IsFirstWorkingStation())
         {
-            elapsedTime += Time.deltaTime;
-            percentComplete = elapsedTime / seconds;
-            stationProgress.fillAmount = percentComplete;
+            currentOrder.orderStarted?.Invoke();
+        }
+    }
+
+    private bool IsFirstWorkingStation()
+    {
+        return stationsCompletedCount == 1;
+    }
+
+    private void PostStationChecks()
+    {
+        if (IsCheckInStation())
+        {
+            currentOrder.orderRequested?.Invoke();
+        }
+        else if (IsOrderAlmostComplete())
+        {
+            currentOrder.orderPrepared?.Invoke();
+        }
+    }
+
+    private bool IsCheckInStation()
+    {
+        return currentStationId == StationId.CheckIn;
+    }
+
+    private bool IsOrderAlmostComplete()
+    {
+        return stationsCompletedCount == requiredStationsCount - 2;
+    }
+    #endregion
+
+    #region Work Loop
+    private IEnumerator workLoop(Order orderToProcess)
+    {
+        SetCurrentWorkStation(orderToProcess);
+        yield return StartCoroutine(MoveToCurrentStation());
+
+        float stationWaitTime = CalculateStationWaitTime();
+
+        PreStationChecks();
+        TriggerPrepStartedEvent(orderToProcess);
+
+        yield return StartCoroutine(CountdownCoroutine(stationWaitTime));
+
+        PostStationChecks();
+
+        if (IsCheckoutStation())
+        {
+            OrderComplete();
+            yield return null;
+        }
+        else
+        {
+            AdvanceToNextStation(orderToProcess);
+        }
+
+        yield return null;
+    }
+
+    private void SetCurrentWorkStation(Order orderToProcess)
+    {
+        currentWorkStation = KitchenManager.instance.GetStation(orderToProcess.dish.requiredStations[stationsCompletedCount]);
+    }
+
+    private IEnumerator MoveToCurrentStation()
+    {
+        //BroadcastMessage("AboutToStartMoving", SendMessageOptions.DontRequireReceiver);
+
+        if (initializeMovementMethod!= null)
+        {
+            foreach (Func<IEnumerator> action in initializeMovementMethod.GetInvocationList())
+            {
+                // wadafak going on here? u may ask lemme explain
+                // so basically, if there are multiple methods subscribed to the initializeMovementMethod func,
+                // we want to call them one by one and wait for each to finish before proceeding to the next
+                yield return StartCoroutine(action?.Invoke());
+            }
+        }
+        yield return StartCoroutine(CurrentMovementMethod(currentWorkStation.StationId));
+    }
+
+    private float CalculateStationWaitTime()
+    {
+        float baseTime = currentWorkStation.stationTime;
+        float efficiencyMultiplier = 1 + CurrentStationEfficiency;
+        return Mathf.Max(0.01f, baseTime / efficiencyMultiplier);
+    }
+
+    private void TriggerPrepStartedEvent(Order orderToProcess)
+    {
+        string prepText = orderToProcess.dish.stationPrepText[stationsCompletedCount];
+        onPrepStarted?.Invoke(prepText);
+    }
+
+    private bool IsCheckoutStation()
+    {
+        return currentWorkStation.StationId == StationId.CheckOut;
+    }
+
+    private void AdvanceToNextStation(Order orderToProcess)
+    {
+        stationsCompletedCount++;
+        StartCoroutine(workLoop(orderToProcess));
+    }
+    #endregion
+
+    #region Worker Interaction
+    //bonus is in seconds
+    public void OnWorkerClicked(float bonusTimeReduction = 0.5f)
+    {
+        if (CanReceiveClickBonus())
+        {
+            bonusReduction = bonusTimeReduction;
+        }
+    }
+
+    private bool CanReceiveClickBonus()
+    {
+        return currentStatus == WorkerStatus.AtStation && currentStationId != StationId.Rest;
+    }
+    #endregion
+
+    #region Timing and Progress
+    private IEnumerator barFill(float durationInSeconds, bool shouldReverse = false)
+    {
+        float completionPercentage = 0;
+        float timeElapsed = 0;
+
+        while (completionPercentage < 1.0f)
+        {
+            timeElapsed += Time.deltaTime;
+            completionPercentage = timeElapsed / durationInSeconds;
+            stationProgress.fillAmount = completionPercentage;
 
             yield return null; // Wait for next frame
         }
@@ -151,137 +337,170 @@ public class Worker : MonoBehaviour
         // Ensure it's exactly 1.0 at the end
         stationProgress.fillAmount = 1.0f;
     }
-    private IEnumerator workLoop(Order order)
+
+    private IEnumerator CountdownCoroutine(float totalWaitTime)
     {
-
-        currentWorkStation = KitchenManager.instance.GetStation(order.dish.requiredStations[stationsCompletedCount]);
-        BroadcastMessage("AboutToStartMoving",SendMessageOptions.DontRequireReceiver);
-        yield return StartCoroutine(CurrentMovementMethod(currentWorkStation.StationId));
-
-        float waitTime = Mathf.Max(0.01f, currentWorkStation.stationTime / (1 + CurrentStationEfficiency));
-
-        PreStationChecks();
-
-        onPrepStarted?.Invoke(order.dish.stationPrepText[stationsCompletedCount]);
-
-        yield return StartCoroutine(CountdownCoroutine(waitTime));
-
-        PostStationChecks();
-
-        //ORDER FINISHED
-        if (currentWorkStation.StationId == StationId.CheckOut) 
+        if (IsCheckoutStation())
         {
-            OrderComplete();
-            yield return null;
-        }
-        else
-        {
-            
-            stationsCompletedCount++;
-            StartCoroutine(workLoop(order));
+            yield return WaitForCarArrival();
         }
 
+        float remainingTime = totalWaitTime;
+        ResetProgressBar();
 
-        //go to next station
-        yield return null;
-    }
-
-    //bonus is in seconds
-    public void OnWorkerClicked(float bonus = 0.5f)
-    {
-        if(currentStatus == WorkerStatus.AtStation && currentStationId != StationId.Rest)
+        while (remainingTime > 0f)
         {
-            bonusReduction = bonus;
-            
-        }
-    }
+            float timeReductionThisFrame = CalculateTimeReduction();
+            remainingTime = UpdateRemainingTime(remainingTime, timeReductionThisFrame);
+            UpdateProgressBar(totalWaitTime, remainingTime);
 
-    private IEnumerator CountdownCoroutine(float waitTime)
-    {
-        if(currentStationId == StationId.CheckOut)
-        {
-            yield return new WaitUntil(() => currentOrder.assignedCar.reachedPickupPoint == true);
-
-            Debug.Log("car has reached pickup point");
-        }
-        float currentTime = waitTime;
-        stationProgress.fillAmount = 0;
-
-        while (currentTime > 0f)
-        {
-            // Calculate the reduction for this frame
-            float frameReduction = Time.deltaTime;
-
-            // Add any bonus reduction that was triggered
-            if (bonusReduction > 0f)
-            {
-                frameReduction += bonusReduction;
-                bonusReduction = 0f; // Reset after using it
-                vfxManager.onClicked();
-            }
-            currentTime -= frameReduction;
-            currentTime = Mathf.Max(0f, currentTime);
-
-            float percentComplete = (waitTime - currentTime) / waitTime;
-            stationProgress.fillAmount = percentComplete;
             yield return null; // Wait for next frame
         }
-        stationProgress.fillAmount = 1;
+
+        CompleteProgressBar();
     }
 
+    private IEnumerator WaitForCarArrival()
+    {
+        yield return new WaitUntil(() => currentOrder.assignedCar.reachedPickupPoint == true);
+        Debug.Log("car has reached pickup point");
+    }
+
+    private void ResetProgressBar()
+    {
+        stationProgress.fillAmount = 0;
+    }
+
+    private float CalculateTimeReduction()
+    {
+        float frameTimeReduction = Time.deltaTime;
+
+        // Add any bonus reduction that was triggered
+        if (HasBonusReduction())
+        {
+            frameTimeReduction += bonusReduction;
+            ConsumeBonusReduction();
+        }
+
+        return frameTimeReduction;
+    }
+
+    private bool HasBonusReduction()
+    {
+        return bonusReduction > 0f;
+    }
+
+    private void ConsumeBonusReduction()
+    {
+        bonusReduction = 0f; // Reset after using it
+        vfxManager.onClicked();
+    }
+
+    private float UpdateRemainingTime(float currentRemainingTime, float reductionAmount)
+    {
+        currentRemainingTime -= reductionAmount;
+        return Mathf.Max(0f, currentRemainingTime);
+    }
+
+    private void UpdateProgressBar(float totalTime, float timeRemaining)
+    {
+        float completionPercentage = (totalTime - timeRemaining) / totalTime;
+        stationProgress.fillAmount = completionPercentage;
+    }
+
+    private void CompleteProgressBar()
+    {
+        stationProgress.fillAmount = 1;
+    }
+    #endregion
+
+    #region Movement System
     //THESE MOVEMENT FUNCTIONS ASSUME THAT YOU HAVE CHECKED FOR FREE SLOTS
     private IEnumerator NormalMove(StationId destinationStationId)
     {
-        if(destinationStationId == currentStationId)
+        if (IsAlreadyAtDestination(destinationStationId))
         {
             yield return null;
         }
-        // Release current station if at one
+
+        ReleaseCurrentStationIfOccupied();
+
+        Vector3 startingPosition = transform.position;
+        Station destinationStation = KitchenManager.instance.GetStation(destinationStationId);
+        Transform availableSlot = destinationStation.ReserveAvailableStandingLocation(this);
+        currentStationId = destinationStationId;
+
+        if (HasAvailableSlot(availableSlot))
+        {
+            yield return StartCoroutine(MoveDirectlyToSlot(startingPosition, availableSlot.position));
+        }
+        else
+        {
+            yield return StartCoroutine(MoveWithWaitingForSlot(startingPosition, destinationStation));
+        }
+    }
+
+    private bool IsAlreadyAtDestination(StationId destination)
+    {
+        return destination == currentStationId;
+    }
+
+    private void ReleaseCurrentStationIfOccupied()
+    {
         if (currentStatus == WorkerStatus.AtStation)
         {
             KitchenManager.instance.GetStation(currentStationId).ReleaseStandingLocation(this);
         }
-
-        Vector3 startingPos = transform.position;
-        Station destinationStation = KitchenManager.instance.GetStation(destinationStationId);
-        Transform slotTransform = destinationStation.ReserveAvailableStandingLocation(this);
-        currentStationId = destinationStationId;
-
-        if (slotTransform != null)
-        {
-            // Direct movement to available slot
-            yield return StartCoroutine(MoveDirectlyToSlot(startingPos, slotTransform.position));
-        }
-        else
-        {
-            // Movement with waiting for slot to become available
-            yield return StartCoroutine(MoveWithWaitingForSlot(startingPos, destinationStation));
-        }
     }
 
-    private IEnumerator MoveDirectlyToSlot(Vector3 startPos, Vector3 endPos)
+    private bool HasAvailableSlot(Transform slotTransform)
     {
-        float distance = (startPos - endPos).magnitude;
-        float timeToDestination = distance / CurrentMovementSpeed;
-        float percentCompleted = 0.0f;
-        float startTime = Time.time;
+        return slotTransform != null;
+    }
 
-        onMovementStarted?.Invoke(Enum.GetName(typeof(StationId), currentStationId));
-        while (percentCompleted < 1.0f && !interruptMovementFlag)
+    private IEnumerator MoveDirectlyToSlot(Vector3 startPosition, Vector3 targetPosition)
+    {
+        float totalDistance = (startPosition - targetPosition).magnitude;
+        float totalTravelTime = totalDistance / CurrentMovementSpeed;
+        float movementProgress = 0.0f;
+        float movementStartTime = Time.time;
+
+        TriggerMovementStartedEvent();
+
+        while (movementProgress < 1.0f && !interruptMovementFlag)
         {
-            float elapsedTime = Time.time - startTime;
-            percentCompleted = elapsedTime / timeToDestination;
-            percentCompleted = Mathf.Clamp01(percentCompleted);
-            transform.position = Vector3.Lerp(startPos, endPos, percentCompleted);
+            movementProgress = CalculateMovementProgress(movementStartTime, totalTravelTime);
+            UpdateWorkerPosition(startPosition, targetPosition, movementProgress);
             currentStatus = WorkerStatus.Running;
             yield return null;
         }
 
+        HandleMovementCompletion();
+    }
+
+    private void TriggerMovementStartedEvent()
+    {
+        string stationName = Enum.GetName(typeof(StationId), currentStationId);
+        onMovementStarted?.Invoke(stationName);
+    }
+
+    private float CalculateMovementProgress(float startTime, float totalTime)
+    {
+        float elapsedTime = Time.time - startTime;
+        float progress = elapsedTime / totalTime;
+        return Mathf.Clamp01(progress);
+    }
+
+    private void UpdateWorkerPosition(Vector3 start, Vector3 end, float progress)
+    {
+        transform.position = Vector3.Lerp(start, end, progress);
+    }
+
+    private void HandleMovementCompletion()
+    {
         if (interruptMovementFlag)
         {
-            interruptMovementFlag = false;
-            postInterruptAction?.Invoke();
-            postInterruptAction = null;
+            ProcessMovementInterruption();
         }
         else
         {
@@ -289,67 +508,74 @@ public class Worker : MonoBehaviour
         }
     }
 
-    private IEnumerator MoveWithWaitingForSlot(Vector3 startPos, Station destinationStation)
+    private void ProcessMovementInterruption()
     {
-        Vector3 defaultSlotPos = destinationStation.GetDefaultSlot().position;
-        float distance = (startPos - defaultSlotPos).magnitude;
-        float timeToDestination = distance / CurrentMovementSpeed;
-        float percentCompleted = 0.0f;
-        float startTime = Time.time;
+        interruptMovementFlag = false;
+        postInterruptAction?.Invoke();
+        postInterruptAction = null;
+    }
 
-        // Set up waiting mechanism for slot
-        Transform freedSlot = null;
+    private IEnumerator MoveWithWaitingForSlot(Vector3 startPosition, Station targetStation)
+    {
+        Vector3 defaultSlotPosition = targetStation.GetDefaultSlot().position;
+        float totalDistance = (startPosition - defaultSlotPosition).magnitude;
+        float totalTravelTime = totalDistance / CurrentMovementSpeed;
+
+        Transform freedSlotTransform = null;
         Action<Transform> onSlotFreed = (Transform slot) => {
-            freedSlot = slot;
+            freedSlotTransform = slot;
         };
-        destinationStation.ReserveUnavailableStandingLocation(onSlotFreed);
+        targetStation.ReserveUnavailableStandingLocation(onSlotFreed);
 
         // Move halfway to default slot
-        while (percentCompleted <= 0.5f)
-        {
-            float elapsedTime = Time.time - startTime;
-            percentCompleted = elapsedTime / timeToDestination;
-            percentCompleted = Mathf.Clamp01(percentCompleted);
-            transform.position = Vector3.Lerp(startPos, defaultSlotPos, percentCompleted);
-            currentStatus = WorkerStatus.Running;
-            yield return null;
-        }
-        currentStatus = WorkerStatus.Waiting;
-        // Wait for slot to become available
+        yield return StartCoroutine(MoveToWaitingPosition(startPosition, defaultSlotPosition, totalTravelTime));
 
-        yield return new WaitUntil(() => freedSlot != null);
+        currentStatus = WorkerStatus.Waiting;
+
+        // Wait for slot to become available
+        yield return new WaitUntil(() => freedSlotTransform != null);
 
         // Move from current position to the freed slot
-        Vector3 currentPos = transform.position;
-        Vector3 endPos = freedSlot.position;
-        float remainingDistance = (currentPos - endPos).magnitude;
-        float remainingTime = remainingDistance / CurrentMovementSpeed;
-        float secondPhasePercent = 0.0f;
-        float secondPhaseStartTime = Time.time;
+        yield return StartCoroutine(MoveToFreedSlot(freedSlotTransform));
+    }
 
-        while (secondPhasePercent < 1.0f && !interruptMovementFlag)
+    private IEnumerator MoveToWaitingPosition(Vector3 start, Vector3 defaultSlot, float totalTime)
+    {
+        float movementProgress = 0.0f;
+        float startTime = Time.time;
+
+        while (movementProgress <= 0.5f)
         {
-            float elapsedTime = Time.time - secondPhaseStartTime;
-            secondPhasePercent = elapsedTime / remainingTime;
-            secondPhasePercent = Mathf.Clamp01(secondPhasePercent);
-            transform.position = Vector3.Lerp(currentPos, endPos, secondPhasePercent);
+            movementProgress = CalculateMovementProgress(startTime, totalTime);
+            movementProgress = Mathf.Clamp01(movementProgress);
+            UpdateWorkerPosition(start, defaultSlot, movementProgress);
             currentStatus = WorkerStatus.Running;
             yield return null;
-        }
-
-        if (interruptMovementFlag)
-        {
-            interruptMovementFlag = false;
-            postInterruptAction?.Invoke();
-            postInterruptAction = null;
-        }
-        else
-        {
-            currentStatus = WorkerStatus.AtStation;
         }
     }
 
+    private IEnumerator MoveToFreedSlot(Transform freedSlot)
+    {
+        Vector3 currentPosition = transform.position;
+        Vector3 finalPosition = freedSlot.position;
+        float remainingDistance = (currentPosition - finalPosition).magnitude;
+        float remainingTravelTime = remainingDistance / CurrentMovementSpeed;
+        float secondPhaseProgress = 0.0f;
+        float secondPhaseStartTime = Time.time;
 
+        while (secondPhaseProgress < 1.0f && !interruptMovementFlag)
+        {
+            secondPhaseProgress = CalculateMovementProgress(secondPhaseStartTime, remainingTravelTime);
+            UpdateWorkerPosition(currentPosition, finalPosition, secondPhaseProgress);
+            currentStatus = WorkerStatus.Running;
+            yield return null;
+        }
+
+        HandleMovementCompletion();
+    }
+    #endregion
+
+    #region Worker State Management
     public void Rest()
     {
         StartCoroutine(CurrentMovementMethod(StationId.Rest));
@@ -357,22 +583,16 @@ public class Worker : MonoBehaviour
 
     public bool isFree()
     {
-        if(currentStationId == StationId.Rest)
-        {
-            return true;
-        }
-        else
-        {
-            return false;
-        }
+        return currentStationId == StationId.Rest;
     }
+    #endregion
 
-    //PROGRAMMING/RDITOR HELPERS 
-
+    #region Editor Helpers
+    //PROGRAMMING/EDITOR HELPERS 
     public void InitializeWorker()
     {
         currentStatus = WorkerStatus.AtStation;
         currentStationId = StationId.Rest;
     }
-
+    #endregion
 }

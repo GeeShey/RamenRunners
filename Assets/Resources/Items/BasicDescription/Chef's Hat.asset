@@ -10,8 +10,8 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 6e092200754a65748992fd1dc70de8e9, type: 3}
-  m_Name: Knife
+  m_Name: Chef's Hat
   m_EditorClassIdentifier: 
-  ID: KN
-  Name: Knife
-  Description: Razor sharp with a heavy handle
+  ID: UTL004
+  Name: Chef's Hat
+  Description: Heavy is the head that wears the crown

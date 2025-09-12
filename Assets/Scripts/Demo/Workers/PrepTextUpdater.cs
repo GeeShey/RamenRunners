@@ -14,8 +14,9 @@ public class PrepTextUpdater : MonoBehaviour
     void Start()
     {
         prepTextCanvas.gameObject.SetActive(false);
-        workerComponent.onPrepStarted = (prepText) => onStartedNewPrep(prepText);
-        workerComponent.onMovementStarted = (destinationStation) => onFinishedNewPrep();
+        //binding the onPrepStarted action to the onStartedNewPrep() method
+        workerComponent.onPrepStarted += (prepText) => onStartedNewPrep(prepText);
+        workerComponent.onMovementStarted += (destinationStation) => onFinishedNewPrep();
 
     }
 

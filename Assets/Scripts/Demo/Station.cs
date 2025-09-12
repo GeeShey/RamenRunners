@@ -56,7 +56,7 @@ public class Station : MonoBehaviour
 
             if (waitingQueue.Count > 0)
             {
-                //tell this worker that the slot is free
+                //tell this ItemOwner that the slot is free
                 Action<Transform> firstAction= waitingQueue[0];
                 waitingQueue.RemoveAt(0);
                 firstAction?.Invoke(slotToRemove);

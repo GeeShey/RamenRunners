@@ -5,19 +5,17 @@ using static Worker;
 
 public class Item_Sandevistan : Item
 {
-    Worker worker;
     public MovementMethod PreviousMovementMethod;
     public float BaseTeleportProbability = 0.025f;
     public float CurrentTeleportProbability = 0f;
-    public int currentStackCount = 0;
 
     // 20% chance to teleport
 
-    public override void PreLoad()
+    public override void PreLoad(Worker _ItemOwner)
     {
-        worker = GetComponent<Worker>();
+        base.PreLoad(_ItemOwner);
+        _ItemOwner.initializeMovementMethod += AboutToStartMoving;
     }
-
     public override void OnStackModified(int count)
     {
         //changing stack count will reset current probability
@@ -27,16 +25,16 @@ public class Item_Sandevistan : Item
 
     }
 
-    public void AboutToStartMoving()
+    public IEnumerator AboutToStartMoving()
     {
         bool goodDiceRoll = DiceRoll();
         if (goodDiceRoll)
         {
-            PreviousMovementMethod = worker.CurrentMovementMethod;
-            worker.CurrentMovementMethod = SandevistanTeleport;
+            PreviousMovementMethod = ItemOwner.CurrentMovementMethod;
+            ItemOwner.CurrentMovementMethod = SandevistanTeleport;
 
         }
-
+        yield break;
     }
 
     public bool DiceRoll()
@@ -67,25 +65,25 @@ public class Item_Sandevistan : Item
     private IEnumerator SandevistanTeleport(StationId destinationStationId)
     {
 
-        if (destinationStationId == worker.currentStationId)
+        if (destinationStationId == ItemOwner.currentStationId)
         {
             yield return null;
         }
 
         // Release current station if at one
-        if (worker.currentStatus == WorkerStatus.AtStation)
+        if (ItemOwner.currentStatus == WorkerStatus.AtStation)
         {
-            KitchenManager.instance.GetStation(worker.currentStationId).ReleaseStandingLocation(worker);
+            KitchenManager.instance.GetStation(ItemOwner.currentStationId).ReleaseStandingLocation(ItemOwner);
         }
 
         //do the telport logic
-        Vector3 startingPos = worker.transform.position;
+        Vector3 startingPos = ItemOwner.transform.position;
         Station destinationStation = KitchenManager.instance.GetStation(destinationStationId);
-        Transform slotTransform = destinationStation.ReserveAvailableStandingLocation(worker);
+        Transform slotTransform = destinationStation.ReserveAvailableStandingLocation(ItemOwner);
         if (slotTransform != null)
         {
-            worker.transform.position = slotTransform.position;
-            worker.onMovementStarted?.Invoke(Enum.GetName(typeof(StationId), worker.currentStationId));
+            ItemOwner.transform.position = slotTransform.position;
+            ItemOwner.onMovementStarted?.Invoke(Enum.GetName(typeof(StationId), ItemOwner.currentStationId));
 
         }
         else
@@ -99,20 +97,20 @@ public class Item_Sandevistan : Item
 
 
             //move to halfway point
-            worker.transform.position = Vector3.Lerp(startingPos, destinationStation.transform.position, 0.5f);
+            ItemOwner.transform.position = Vector3.Lerp(startingPos, destinationStation.transform.position, 0.5f);
 
             //wait for slot to be free
-            worker.currentStatus = WorkerStatus.Waiting;
+            ItemOwner.currentStatus = WorkerStatus.Waiting;
             yield return new WaitUntil(() => freedSlot != null);
 
             //move to slot
-            worker.transform.position = freedSlot.position;
-            worker.currentStatus = WorkerStatus.AtStation;
+            ItemOwner.transform.position = freedSlot.position;
+            ItemOwner.currentStatus = WorkerStatus.AtStation;
 
         }
-        worker.currentStationId = destinationStationId;
-        worker.currentStatus = WorkerStatus.AtStation;
-        worker.CurrentMovementMethod = PreviousMovementMethod;
+        ItemOwner.currentStationId = destinationStationId;
+        ItemOwner.currentStatus = WorkerStatus.AtStation;
+        ItemOwner.CurrentMovementMethod = PreviousMovementMethod;
 
     }
 }
