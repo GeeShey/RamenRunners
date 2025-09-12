@@ -16,23 +16,21 @@ public enum OrderStatus
 public class Order
 {
     public string id;
-    public StationId[] requiredStations;
+    public int orderValue;
+    public DishSo dish;
     public float orderStartTime;
-    public float customerWaitLimit = 40.0f;
-    public float customerWaitTime;
     public OrderStatus status;
     public float completionPercentage;
+    public Worker assignedWorker;
+    public Car assignedCar;
 
-
-    /*
-     * Using events and flags because we need to bind actions to events. As opposed to continuously checking for flags
-     */
 
     //EVENTS
     public Action orderRequested;//this is invoked when the worker has finished taking the order from the customer
     public Action orderStarted;
     public Action orderPrepared;
     public Action orderHanded;
+
 
 
 }
@@ -53,12 +51,6 @@ public class OrderManager : MonoBehaviour
         //create a random order, give it to the kitchen manager
     }
 
-    // Update is called once per frame
-    void Update()
-    {
-
-    }
-
     public void SpawnCarWithOrder()
     {
         //create a random order
@@ -69,29 +61,13 @@ public class OrderManager : MonoBehaviour
 
     }
 
-    private List<StationId> getRandomStations()
-    {
-        StationId[] availableStations = { StationId.Pantry, StationId.Cold, StationId.Hot, StationId.Frier, StationId.Assembly };
-        // Create a random number generator
-        System.Random random = new System.Random();
-        // Determine how many middle stations to include (1 to all available stations)
-        int middleStationCount = random.Next(1, availableStations.Length + 1);
-        // Shuffle the available stations and take the required number
-        StationId[] shuffledStations = availableStations.OrderBy(x => random.Next()).Take(middleStationCount).ToArray();
-        // Build the final station list: CheckIn + random middle stations + CheckOut
-        List<StationId> finalStations = new List<StationId>();
-        finalStations.Add(StationId.CheckIn);           // Always first
-        finalStations.AddRange(shuffledStations);       // Random middle stations
-        finalStations.Add(StationId.CheckOut);          // Always last
-        return finalStations;
-    }
-
     public Order createRandomOrder()
     {
         Order order = new Order();
         order.id = "OD001";
-        order.requiredStations = getRandomStations().ToArray();
-        order.customerWaitTime = 300;
+        DishSo dish = FoodMap.instance.getRandomDish(KitchenManager.instance.getAvailableStations());        
+        order.dish = dish;
+        order.orderValue = dish.itemPrice;
         order.status = OrderStatus.NotStarted;
         order.completionPercentage = 0f;
         return order;

@@ -52,7 +52,7 @@ public class CarManager : MonoBehaviour
         car.transform.position = carSpawnPoint.position;
         Car CarComponent = car.GetComponent<Car>();
         CarComponent.order = OrderManager.instance.createRandomOrder();
-        CarComponent.StartOrder();
+        CarComponent.StartOrder();      
 
     }
     private void InitializeCarSlots()
@@ -112,10 +112,15 @@ public class CarManager : MonoBehaviour
     private void SendWaitingCar(){
 
         if (carsWaitingToOrder.Count <= 0)
-            return;
+        {
+            InitializeNewCar();
+        }
+        else
+        {
+            carsWaitingToOrder[0].StartOrder();
+            carsWaitingToOrder.RemoveAt(0);
+        }
 
-        carsWaitingToOrder[0].StartOrder();
-        carsWaitingToOrder.RemoveAt(0);
 
     }
 

@@ -4,7 +4,8 @@ using System;
 public class Item_Knife : Item
 {
     Worker worker;
-    int currentStackCount = 0;
+    [SerializeField]
+    public int currentStackCount = 0;
     public override void PreLoad()
     {
         worker = GetComponent<Worker>();
@@ -13,8 +14,10 @@ public class Item_Knife : Item
     public override void OnStackModified(int count)
     {
         currentStackCount += count;
-        float movementSpeedBonus = (WorkerBaseStats.movementSpeed * 0.1f * currentStackCount);
-        worker.movementSpeed = WorkerBaseStats.movementSpeed + movementSpeedBonus;
+        float efficiencyBonus = (WorkerBaseStats.stationEfficiency * 0.5f * currentStackCount);
+        worker.CurrentStationEfficiency = WorkerBaseStats.stationEfficiency + efficiencyBonus;
+
+        Debug.Log("current efficiency ="+ worker.CurrentStationEfficiency);
 
     }
 

@@ -16,7 +16,6 @@ public struct HierarchyHighlights
 
 /// <summary> Sets a background color for game objects in the Hierarchy tab</summary>
 [UnityEditor.InitializeOnLoad]
-#endif
 public class HierarchyColor
 {
     private static Vector2 offset = new Vector2(20, 1);
@@ -100,17 +99,23 @@ public class HierarchyColor
         }
     }
 }
+#endif
 
 
 [System.Serializable]
 public class HighlightElementsData
 {
+#if UNITY_EDITOR
+
     public List<SerializableHighlight> elements = new List<SerializableHighlight>();
+#endif
 }
 
 [System.Serializable]
 public class SerializableHighlight
 {
+#if UNITY_EDITOR
+
     public string label;
     public float backgroundColorR;
     public float backgroundColorG;
@@ -145,4 +150,6 @@ public class SerializableHighlight
             textColor = new Color(textColorR, textColorG, textColorB, textColorA)
         };
     }
+#endif
+
 }

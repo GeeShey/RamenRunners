@@ -2,6 +2,7 @@ using System.Collections.Generic;
 using UnityEngine;
 using System.Linq;
 using System;
+using static UnityEngine.Rendering.DebugUI;
 
 
 public class Station : MonoBehaviour
@@ -69,6 +70,10 @@ public class Station : MonoBehaviour
         return occupiedSlots.ContainsKey(location);
     }
 
+    public string getName()
+    {
+        return Enum.GetName(typeof(StationId), StationId);
+    }
     public int GetAvailableStandingLocationCount()
     {
         return standingLocations.Length - occupiedSlots.Count;

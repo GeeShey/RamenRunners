@@ -3,10 +3,11 @@ using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.UI;
 using System;
+using UnityEditor.Experimental.GraphView;
 
 public enum WorkerStatus
 {
-    Running, AtStation
+    Running, AtStation, Waiting
 }
 
 public static class WorkerBaseStats
@@ -19,8 +20,8 @@ public class Worker : MonoBehaviour
 {
 
     //WORKER STATS
-    public float movementSpeed;
-    public float stationEfficiency;
+    public float CurrentMovementSpeed;
+    public float CurrentStationEfficiency;
     public List<Utensil> equippedUtensils;
     public int FinishedOrdersCount;
 
@@ -36,7 +37,8 @@ public class Worker : MonoBehaviour
     [NonSerialized]
     public bool interruptMovementFlag = false;
     public Action postInterruptAction;
-
+    public delegate IEnumerator MovementMethod(StationId stationId);
+    public MovementMethod CurrentMovementMethod;
 
     [Header("UI")]
     //UI
@@ -46,20 +48,30 @@ public class Worker : MonoBehaviour
     private float bonusReduction = 0f;
     private WokerVFXManager vfxManager;
 
+    //HELPERS FOR OTHER CLASSES
+    public Action<string> onPrepStarted;
+    public Action<string> onMovementStarted;
+
+    //DEBUG
+    public DishSo currentDish;
 
 
     void Start()
     {
         KitchenManager.instance.addWorker(this);
         vfxManager = GetComponent<WokerVFXManager>();
-        movementSpeed = WorkerBaseStats.movementSpeed;
-        stationEfficiency = WorkerBaseStats.stationEfficiency;
+        CurrentMovementSpeed = WorkerBaseStats.movementSpeed;
+        CurrentStationEfficiency = WorkerBaseStats.stationEfficiency;
+        CurrentMovementMethod = NormalMove;
+        CarManager.instance.InitializeNewCar();
     }
 
     public void startOrder(Order order)
     {
+        order.assignedWorker = this;
+        currentDish = order.dish;
         //worker was going to rest UNIQUE SCENARIO
-        if(currentStationId == StationId.Rest && currentStatus == WorkerStatus.Running)
+        if (currentStationId == StationId.Rest && currentStatus == WorkerStatus.Running)
         {
 
             Debug.Log("interrupted");
@@ -82,8 +94,7 @@ public class Worker : MonoBehaviour
     private void PreProcessOrder(Order order)
     {
         currentOrder = order;
-        //currentOrder.dish.requiredStations.Insert(0,StationId.CheckIn);
-        //currentOrder.dish.requiredStations.Add(StationId.CheckOut);
+
         currentOrder.status = OrderStatus.InProgress;
         currentOrder.orderStartTime = Time.time;
         stationsCompletedCount = 0;
@@ -108,22 +119,19 @@ public class Worker : MonoBehaviour
         {
             currentOrder.orderPrepared?.Invoke();
         }
-        else if (stationsCompletedCount == requiredStationsCount - 1)
-        {
-            currentOrder.orderHanded?.Invoke();
-
-        }
     }
 
     private void OrderComplete()
     {
         currentOrder.status = OrderStatus.Completed;
         currentOrder.orderHanded?.Invoke();
+        CurrencyManager.instance.addFunds(currentOrder.dish.itemPrice);
         FinishedOrdersCount++;
         if (!KitchenManager.instance.GiveMeOrder(this))
         {
             Rest();
         }
+        //CurrencyFallingEffectController.instance.activateEffect();
     }
 
     private IEnumerator barFill(float seconds, bool reverse = false)
@@ -146,26 +154,17 @@ public class Worker : MonoBehaviour
     private IEnumerator workLoop(Order order)
     {
 
-        //Ensure that we start at check in counter
-        if (stationsCompletedCount == 0)
-        {
-            yield return StartCoroutine(MoveFromCurrentPlaceToStation(StationId.CheckIn));
-
-        }
-
-        if (stationsCompletedCount == order.dish.requiredStations.Count)
-        {
-            yield return StartCoroutine(MoveFromCurrentPlaceToStation(StationId.CheckOut));
-
-        }
-
         currentWorkStation = KitchenManager.instance.GetStation(order.dish.requiredStations[stationsCompletedCount]);
+        BroadcastMessage("AboutToStartMoving",SendMessageOptions.DontRequireReceiver);
+        yield return StartCoroutine(CurrentMovementMethod(currentWorkStation.StationId));
 
-        float waitTime = currentWorkStation.stationTime;
+        float waitTime = Mathf.Max(0.01f, currentWorkStation.stationTime / (1 + CurrentStationEfficiency));
 
         PreStationChecks();
 
-        yield return StartCoroutine(CountdownCoroutine(Mathf.Lerp(waitTime, 0.1f, stationEfficiency)));
+        onPrepStarted?.Invoke(order.dish.stationPrepText[stationsCompletedCount]);
+
+        yield return StartCoroutine(CountdownCoroutine(waitTime));
 
         PostStationChecks();
 
@@ -179,7 +178,6 @@ public class Worker : MonoBehaviour
         {
             
             stationsCompletedCount++;
-            yield return StartCoroutine(MoveFromCurrentPlaceToStation(order.dish.requiredStations[stationsCompletedCount]));
             StartCoroutine(workLoop(order));
         }
 
@@ -200,9 +198,14 @@ public class Worker : MonoBehaviour
 
     private IEnumerator CountdownCoroutine(float waitTime)
     {
+        if(currentStationId == StationId.CheckOut)
+        {
+            yield return new WaitUntil(() => currentOrder.assignedCar.reachedPickupPoint == true);
+
+            Debug.Log("car has reached pickup point");
+        }
         float currentTime = waitTime;
         stationProgress.fillAmount = 0;
-
 
         while (currentTime > 0f)
         {
@@ -227,7 +230,7 @@ public class Worker : MonoBehaviour
     }
 
     //THESE MOVEMENT FUNCTIONS ASSUME THAT YOU HAVE CHECKED FOR FREE SLOTS
-    private IEnumerator MoveFromCurrentPlaceToStation(StationId destinationStationId)
+    private IEnumerator NormalMove(StationId destinationStationId)
     {
         if(destinationStationId == currentStationId)
         {
@@ -259,10 +262,11 @@ public class Worker : MonoBehaviour
     private IEnumerator MoveDirectlyToSlot(Vector3 startPos, Vector3 endPos)
     {
         float distance = (startPos - endPos).magnitude;
-        float timeToDestination = distance / movementSpeed;
+        float timeToDestination = distance / CurrentMovementSpeed;
         float percentCompleted = 0.0f;
         float startTime = Time.time;
 
+        onMovementStarted?.Invoke(Enum.GetName(typeof(StationId), currentStationId));
         while (percentCompleted < 1.0f && !interruptMovementFlag)
         {
             float elapsedTime = Time.time - startTime;
@@ -289,7 +293,7 @@ public class Worker : MonoBehaviour
     {
         Vector3 defaultSlotPos = destinationStation.GetDefaultSlot().position;
         float distance = (startPos - defaultSlotPos).magnitude;
-        float timeToDestination = distance / movementSpeed;
+        float timeToDestination = distance / CurrentMovementSpeed;
         float percentCompleted = 0.0f;
         float startTime = Time.time;
 
@@ -310,15 +314,16 @@ public class Worker : MonoBehaviour
             currentStatus = WorkerStatus.Running;
             yield return null;
         }
-
+        currentStatus = WorkerStatus.Waiting;
         // Wait for slot to become available
+
         yield return new WaitUntil(() => freedSlot != null);
 
         // Move from current position to the freed slot
         Vector3 currentPos = transform.position;
         Vector3 endPos = freedSlot.position;
         float remainingDistance = (currentPos - endPos).magnitude;
-        float remainingTime = remainingDistance / movementSpeed;
+        float remainingTime = remainingDistance / CurrentMovementSpeed;
         float secondPhasePercent = 0.0f;
         float secondPhaseStartTime = Time.time;
 
@@ -347,7 +352,7 @@ public class Worker : MonoBehaviour
 
     public void Rest()
     {
-        StartCoroutine(MoveFromCurrentPlaceToStation(StationId.Rest));
+        StartCoroutine(CurrentMovementMethod(StationId.Rest));
     }
 
     public bool isFree()

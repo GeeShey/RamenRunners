@@ -20,9 +20,13 @@ public class MouseCameraMovement: MonoBehaviour
     private Camera cam;
     private Vector3 lastMousePosition;
     private bool isPanning = false;
+    public bool freezeMovement;
+
+    public static MouseCameraMovement instance;
 
     void Start()
     {
+        instance = this;
         cam = GetComponent<Camera>();
         // Ensure camera is orthographic
         if (!cam.orthographic)
@@ -30,6 +34,8 @@ public class MouseCameraMovement: MonoBehaviour
             Debug.LogWarning("Camera is not orthographic. Setting to orthographic mode.");
             cam.orthographic = true;
         }
+
+        secondCam.orthographicSize = cam.orthographicSize;
     }
 
     void Update()
@@ -40,6 +46,8 @@ public class MouseCameraMovement: MonoBehaviour
 
     void HandlePanning()
     {
+        if(freezeMovement)
+            return;
         // Start panning
         if (Input.GetMouseButtonDown(panMouseButton))
         {

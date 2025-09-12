@@ -6,6 +6,7 @@ using UnityEngine;
 
 public class DevHelper : MonoBehaviour
 {
+#if UNITY_EDITOR
     //this is for storage purposes only DO NOT SET FROM HERE
     public List<HierarchyColor> colors;
 
@@ -31,4 +32,5 @@ public class DevHelper : MonoBehaviour
             }
         }
     }
+#endif
 }

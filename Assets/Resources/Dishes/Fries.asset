@@ -12,4 +12,11 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 169b99ae350c57f4e9eda8956ca6cc1a, type: 3}
   m_Name: Fries
   m_EditorClassIdentifier: 
-  requiredStations: 03000000
+  name: Fries
+  description: 
+  requiredStations: 050000000300000006000000
+  stationPrepText:
+  - Recieving order...
+  - Frying potato...
+  - Handing over order...
+  itemPrice: 50

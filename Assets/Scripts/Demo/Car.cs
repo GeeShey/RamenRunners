@@ -9,10 +9,14 @@ public class Car : MonoBehaviour
 {
 
     public Order order;
+    [SerializeField]
+    public LineRenderer lineRenderer;
+    public bool reachedPickupPoint = false;
 
-
+    public bool DEBUG;
     public void StartOrder()
     {
+        order.assignedCar = this;
         if (CarManager.instance.OrderSlotAvailable())
         {
 
@@ -26,7 +30,21 @@ public class Car : MonoBehaviour
         }
     }
 
-    private IEnumerator MoveTo(Vector3 destination, float timeToDestination = 2.0f)
+    private void Update()
+    {
+        if (DEBUG)
+        {
+            if (order != null && order.assignedWorker != null)
+            {
+                //draw line from car to worker
+                lineRenderer.positionCount = 2;
+                lineRenderer.SetPosition(0, transform.position);
+                lineRenderer.SetPosition(1, order.assignedWorker.transform.position);
+            }
+        }
+    }
+
+    private IEnumerator MoveTo(Vector3 destination, float timeToDestination = 2.0f, Action onComplete = null)
     {
         Vector3 startPosition = transform.position;
         float elapsedTime = 0f;
@@ -44,6 +62,7 @@ public class Car : MonoBehaviour
 
         // Ensure we end up exactly at the destination
         transform.position = destination;
+        onComplete?.Invoke();
 
     }
 
@@ -78,7 +97,9 @@ public class Car : MonoBehaviour
         CarSlot pickupSlot = CarManager.instance.GetAvailablePickupSlot();
         Debug.Log("moving to pickup slot");
 
-        yield return StartCoroutine(MoveTo(pickupSlot.position));
+
+
+        yield return StartCoroutine(MoveTo(pickupSlot.position, 2, () => reachedPickupPoint = true));
 
         //CREATING TWO RACE CONDITIONS TO SEE WHICH ONE WILL FINISH FIRST. EITHER THE ORDER LIMIT RUNS OUT OR THE 
         //ORDER GETS HANDED
@@ -94,31 +115,15 @@ public class Car : MonoBehaviour
         };
         order.orderHanded += orderHandedAction;
 
-        Coroutine waitCoroutine = StartCoroutine(WaitForOrder());
-        
-        yield return new WaitUntil(() => {
-            if (orderHanded) return true;
-            if (waitCoroutine == null) return true; // Coroutine finished
-            return false;
-        });
+
+        yield return new WaitUntil(() => orderHanded);
+        if (DEBUG)
+            lineRenderer.enabled = true;
 
         StartCoroutine(MoveToExitSlot());
 
     }
 
-    private IEnumerator WaitForOrder()
-    {
-        float timeElapsed = Time.time - order.orderStartTime;
-
-        while(timeElapsed < order.customerWaitLimit)
-        {
-            yield return null;
-        }
-
-
-        Debug.Log("Order took too long");
-        MoveToExitSlot();
-    }
 
     public void MoveToCheckoutSlot()
     {
@@ -127,6 +132,8 @@ public class Car : MonoBehaviour
 
     private IEnumerator MoveToExitSlot()
     {
+        lineRenderer.enabled = false;
         yield return StartCoroutine(MoveTo(CarManager.instance.GetExitSlot().position));
+        Destroy(gameObject);
     }
 }

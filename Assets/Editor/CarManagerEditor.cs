@@ -26,6 +26,15 @@ public class CarManagerEditor : Editor
         // Create the button
         if (GUILayout.Button("Initialize Car with Order"))
         {
+            if (!EditorApplication.isPlaying)
+            {
+                EditorUtility.DisplayDialog(
+                    "Play Mode Required",
+                    "You need to be in Play mode to initialize a car with order.",
+                    "OK"
+                );
+                return;
+            }
             carManager.InitializeNewCar();
         }
 

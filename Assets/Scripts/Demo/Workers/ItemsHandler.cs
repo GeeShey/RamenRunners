@@ -2,6 +2,7 @@ using System.Collections.Generic;
 using UnityEngine;
 using System;
 
+
 public class ItemsHandler : MonoBehaviour
 {
     public Dictionary<string, Component> itemDictionary = new Dictionary<string, Component>();

@@ -355,7 +355,7 @@
                 "m_Node": {
                     "m_Id": "10442f8579fb45068aa6b697bfb28038"
                 },
-                "m_SlotId": 1
+                "m_SlotId": 0
             }
         },
         {
@@ -369,7 +369,7 @@
                 "m_Node": {
                     "m_Id": "10442f8579fb45068aa6b697bfb28038"
                 },
-                "m_SlotId": 0
+                "m_SlotId": 1
             }
         },
         {
@@ -2457,7 +2457,7 @@
     "m_ZTestMode": 4,
     "m_ZWriteControl": 0,
     "m_AlphaMode": 0,
-    "m_RenderFace": 2,
+    "m_RenderFace": 0,
     "m_AlphaClip": false,
     "m_CastShadows": true,
     "m_ReceiveShadows": true,

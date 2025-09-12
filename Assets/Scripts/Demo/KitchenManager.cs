@@ -22,6 +22,7 @@ public class KitchenManager : MonoBehaviour
         stations.Add(station);
     }
 
+
     public Station GetStation(StationId stationId)
     {
         return stations.FirstOrDefault(s => s.StationId == stationId);
@@ -58,6 +59,7 @@ public class KitchenManager : MonoBehaviour
         }
         else
         {
+            CarManager.instance.InitializeNewCar();
             return false;
         }
     }
@@ -65,6 +67,22 @@ public class KitchenManager : MonoBehaviour
     public Worker getWorker()
     {
         return null;
+
+    }
+
+    public StationId[] getAvailableStations()
+    {
+        List<StationId> availableStations = new List<StationId>();
+
+        for (int i = 0; i < stations.Count; i++)
+        {
+            if (stations[i].StationId != StationId.CheckIn || stations[i].StationId != StationId.CheckOut)
+            {
+                availableStations.Add(stations[i].StationId);
+            }
+        }
+
+        return availableStations.ToArray();
 
     }
 }

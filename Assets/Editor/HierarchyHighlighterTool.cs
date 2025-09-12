@@ -5,6 +5,7 @@ using System.IO;
 
 public class HierarchyHighlighterTool : EditorWindow
 {
+#if UNITY_EDITOR
     private List<HierarchyHighlights> highlightElements = new List<HierarchyHighlights>();
     private Vector2 scrollPosition;
     private string saveFilePath;
@@ -168,6 +169,8 @@ public class HierarchyHighlighterTool : EditorWindow
         Debug.Log($"Applied {highlightElements.Count} highlight elements to hierarchy.");
         //EditorUtility.DisplayDialog("Applied Successfully", $"Applied {highlightElements.Count} highlight elements to the hierarchy!", "OK");
     }
+
+#endif
 
 
 }
