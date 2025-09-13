@@ -3,16 +3,16 @@ using System.Collections;
 using UnityEngine;
 using static Worker;
 
+//example of an item
 public class Item_Sandevistan : Item
 {
     public MovementMethod PreviousMovementMethod;
     public float BaseTeleportProbability = 0.025f;
     public float CurrentTeleportProbability = 0f;
 
-    // 20% chance to teleport
-
     public override void PreLoad(Worker _ItemOwner)
     {
+        //this requires a worker
         base.PreLoad(_ItemOwner);
         _ItemOwner.initializeMovementMethod += AboutToStartMoving;
     }

@@ -11,6 +11,7 @@ public class Station : MonoBehaviour
     public Transform[] standingLocations;
     public float stationTime;
     public StationId StationId;
+    public Action<Worker> stationWorkStarted;
 
     private Dictionary<Transform, Worker> occupiedSlots = new Dictionary<Transform, Worker>();
     private List<Action<Transform>> waitingQueue = new List<Action<Transform>>();
@@ -20,6 +21,11 @@ public class Station : MonoBehaviour
     {
         KitchenManager.instance.RegisterStation(this);
 
+    }
+
+    public List<Worker> GetAllWorkers()
+    {
+        return occupiedSlots.Values.ToList();
     }
 
     public Transform ReserveAvailableStandingLocation( Worker worker)

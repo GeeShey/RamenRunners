@@ -9,6 +9,8 @@ public class KitchenManager : MonoBehaviour
     public List<Order> orders;
     public List<Station> stations;
 
+    public bool DEBUG;
+
     void Start()
     {
         instance = this;

@@ -47,7 +47,8 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   lineRenderer: {fileID: 5596136331529618170}
-  DEBUG: 1
+  reachedPickupPoint: 0
+  DEBUG: 0
 --- !u!120 &5596136331529618170
 LineRenderer:
   serializedVersion: 2

@@ -32,7 +32,7 @@ public class Worker : MonoBehaviour
     public WorkerStatus currentStatus;
     private Order currentOrder;
     private int stationsCompletedCount; //this keeps track of which station the ItemOwner is in, out of all the stations that he has to go to
-    private Station currentWorkStation;
+    public Station currentWorkStation;
     private int requiredStationsCount;
     #endregion
 
@@ -60,6 +60,8 @@ public class Worker : MonoBehaviour
     #region Events
     //HELPERS FOR OTHER CLASSES
     public Action<string> onPrepStarted;
+    public Action onPrepFinished;
+
     public Action<string> onMovementStarted;
     //FUNC IS BASICALLY AN ACTION BUT RETURNS A VALUE WHEN YOU CALL INVOKE()
     public Func<IEnumerator> initializeMovementMethod;
@@ -96,7 +98,7 @@ public class Worker : MonoBehaviour
 
     private void InitializeExternalSystems()
     {
-        CarManager.instance.InitializeNewCar();
+        //CarManager.instance.InitializeNewCar();
     }
     #endregion
 
@@ -305,11 +307,11 @@ public class Worker : MonoBehaviour
 
     #region Worker Interaction
     //bonus is in seconds
-    public void OnWorkerClicked(float bonusTimeReduction = 0.5f)
+    public void RecieveBonusReduction(float bonusTimeReduction = 0.5f)
     {
         if (CanReceiveClickBonus())
         {
-            bonusReduction = bonusTimeReduction;
+            bonusReduction += bonusTimeReduction;
         }
     }
 
@@ -344,6 +346,8 @@ public class Worker : MonoBehaviour
         {
             yield return WaitForCarArrival();
         }
+
+        currentWorkStation.stationWorkStarted?.Invoke(this);
 
         float remainingTime = totalWaitTime;
         ResetProgressBar();

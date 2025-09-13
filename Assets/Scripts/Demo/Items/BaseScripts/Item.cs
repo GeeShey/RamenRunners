@@ -8,6 +8,8 @@ public abstract class Item : MonoBehaviour
     public int currentStackCount = 0;
 
     public int StackCount;
+
+    public bool DEBUG;
     public virtual void PreLoad(Worker _ItemOwner)
     {
         ItemOwner = _ItemOwner;
