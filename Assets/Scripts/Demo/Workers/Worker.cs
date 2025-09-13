@@ -5,79 +5,31 @@ using UnityEngine.UI;
 using System;
 using UnityEditor.Experimental.GraphView;
 
-public enum WorkerStatus
+public class Worker : BaseWorker
 {
-    Running, AtStation, Waiting
-}
-
-public static class WorkerBaseStats
-{
-    public static float movementSpeed = 2;
-    public static float stationEfficiency = 0.1f;
-}
-
-public class Worker : MonoBehaviour
-{
-    #region Worker Stats
-    //WORKER STATS
-    public float CurrentMovementSpeed;
-    public float CurrentStationEfficiency;
+    #region Worker-Specific Stats
     public List<Utensil> equippedUtensils;
     public int FinishedOrdersCount;
     #endregion
 
     #region Worker Trackers
-    //WORKER TRACKERS
-    public StationId currentStationId; //when running this value is the destination. When at station this stores the station where the ItemOwner is working
-    public WorkerStatus currentStatus;
     private Order currentOrder;
     private int stationsCompletedCount; //this keeps track of which station the ItemOwner is in, out of all the stations that he has to go to
-    public Station currentWorkStation;
     private int requiredStationsCount;
     #endregion
 
-    #region Movement Variables
-    //MOVEMENT VARS
-    [NonSerialized]
-    public bool interruptMovementFlag = false;
-    public Action postInterruptAction;
-    public delegate IEnumerator MovementMethod(StationId stationId);
-    public MovementMethod CurrentMovementMethod;
-    #endregion
-
-    #region UI Components
-    [Header("UI")]
-    //UI
-    public Image stationProgress;
-    public float fillInterval = 1.0f;
-    #endregion
-
     #region Private Fields
-    private float bonusReduction = 0f;
-    private WokerVFXManager vfxManager;
-    #endregion
-
-    #region Events
-    //HELPERS FOR OTHER CLASSES
-    public Action<string> onPrepStarted;
-    public Action onPrepFinished;
-
-    public Action<string> onMovementStarted;
-    //FUNC IS BASICALLY AN ACTION BUT RETURNS A VALUE WHEN YOU CALL INVOKE()
-    public Func<IEnumerator> initializeMovementMethod;
-
     #endregion
 
     #region Debug
-    //DEBUG
     public DishSo currentDish;
     #endregion
 
     #region Unity Lifecycle
-    void Start()
+    protected override void Start()
     {
+        base.Start(); // Call BaseWorker's Start method
         InitializeWorkerComponents();
-        InitializeWorkerStats();
         InitializeExternalSystems();
     }
     #endregion
@@ -89,16 +41,9 @@ public class Worker : MonoBehaviour
         vfxManager = GetComponent<WokerVFXManager>();
     }
 
-    private void InitializeWorkerStats()
-    {
-        CurrentMovementSpeed = WorkerBaseStats.movementSpeed;
-        CurrentStationEfficiency = WorkerBaseStats.stationEfficiency;
-        CurrentMovementMethod = NormalMove;
-    }
-
     private void InitializeExternalSystems()
     {
-        //CarManager.instance.InitializeNewCar();
+        CarManager.instance.InitializeNewCar();
     }
     #endregion
 
@@ -267,7 +212,7 @@ public class Worker : MonoBehaviour
     {
         //BroadcastMessage("AboutToStartMoving", SendMessageOptions.DontRequireReceiver);
 
-        if (initializeMovementMethod!= null)
+        if (initializeMovementMethod != null)
         {
             foreach (Func<IEnumerator> action in initializeMovementMethod.GetInvocationList())
             {
@@ -305,21 +250,7 @@ public class Worker : MonoBehaviour
     }
     #endregion
 
-    #region Worker Interaction
-    //bonus is in seconds
-    public void RecieveBonusReduction(float bonusTimeReduction = 0.5f)
-    {
-        if (CanReceiveClickBonus())
-        {
-            bonusReduction += bonusTimeReduction;
-        }
-    }
 
-    private bool CanReceiveClickBonus()
-    {
-        return currentStatus == WorkerStatus.AtStation && currentStationId != StationId.Rest;
-    }
-    #endregion
 
     #region Timing and Progress
     private IEnumerator barFill(float durationInSeconds, bool shouldReverse = false)
@@ -375,30 +306,7 @@ public class Worker : MonoBehaviour
         stationProgress.fillAmount = 0;
     }
 
-    private float CalculateTimeReduction()
-    {
-        float frameTimeReduction = Time.deltaTime;
-
-        // Add any bonus reduction that was triggered
-        if (HasBonusReduction())
-        {
-            frameTimeReduction += bonusReduction;
-            ConsumeBonusReduction();
-        }
-
-        return frameTimeReduction;
-    }
-
-    private bool HasBonusReduction()
-    {
-        return bonusReduction > 0f;
-    }
-
-    private void ConsumeBonusReduction()
-    {
-        bonusReduction = 0f; // Reset after using it
-        vfxManager.onClicked();
-    }
+ 
 
     private float UpdateRemainingTime(float currentRemainingTime, float reductionAmount)
     {
@@ -418,9 +326,8 @@ public class Worker : MonoBehaviour
     }
     #endregion
 
-    #region Movement System
-    //THESE MOVEMENT FUNCTIONS ASSUME THAT YOU HAVE CHECKED FOR FREE SLOTS
-    private IEnumerator NormalMove(StationId destinationStationId)
+    #region Movement System - Worker-specific overrides
+    protected override IEnumerator NormalMove(StationId destinationStationId)
     {
         if (IsAlreadyAtDestination(destinationStationId))
         {
@@ -579,13 +486,13 @@ public class Worker : MonoBehaviour
     }
     #endregion
 
-    #region Worker State Management
-    public void Rest()
+    #region BaseWorker Implementation
+    public override void Rest()
     {
         StartCoroutine(CurrentMovementMethod(StationId.Rest));
     }
 
-    public bool isFree()
+    public override bool isFree()
     {
         return currentStationId == StationId.Rest;
     }

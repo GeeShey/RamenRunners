@@ -44,7 +44,7 @@ public class Clicker : MonoBehaviour
     void OnWorkerHit(GameObject worker)
     {
         string workerName = worker.name;
-        Worker clickedWorker = KitchenManager.instance.workers.Find(worker => worker.gameObject.name == workerName);
+        BaseWorker clickedWorker = KitchenManager.instance.workers.Find(worker => worker.gameObject.name == workerName);
         clickedWorker.RecieveBonusReduction();
     }
 

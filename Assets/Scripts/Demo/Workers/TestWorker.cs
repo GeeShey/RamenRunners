@@ -20,7 +20,7 @@ public class TestItemConfig
     public int stackCount = 1;
 }
 
-public class TestWorker : MonoBehaviour
+public class TestWorker : BaseWorker
 {
     #region Test Configuration
     [Header("Test Configuration")]
@@ -32,36 +32,6 @@ public class TestWorker : MonoBehaviour
     [SerializeField] private bool autoStartOnPlay = true;
     #endregion
 
-    #region Worker Components (Similar to original Worker)
-    [Header("Worker Stats")]
-    public float CurrentMovementSpeed;
-    public float CurrentStationEfficiency;
-    public List<Item> equippedItems = new List<Item>();
-    public WorkerStatus currentStatus;
-    public StationId currentStationId;
-    public Station currentWorkStation;
-    #endregion
-
-    #region Movement Variables
-    [NonSerialized]
-    public bool interruptMovementFlag = false;
-    public Action postInterruptAction;
-    public Worker.MovementMethod CurrentMovementMethod;
-    #endregion
-
-    #region UI Components
-    [Header("UI")]
-    public Image stationProgress;
-    public float fillInterval = 1.0f;
-    #endregion
-
-    #region Events (Compatible with items)
-    public Action<string> onPrepStarted;
-    public Action onPrepFinished;
-    public Action<string> onMovementStarted;
-    public Func<IEnumerator> initializeMovementMethod;
-    #endregion
-
     #region Test State
     private int currentTaskIndex = 0;
     private bool isTestRunning = false;
@@ -69,8 +39,9 @@ public class TestWorker : MonoBehaviour
     #endregion
 
     #region Unity Lifecycle
-    void Start()
+    protected override void Start()
     {
+        base.Start(); // Call BaseWorker's Start method
         InitializeTestWorker();
 
         if (enableTestMode && autoStartOnPlay)
@@ -92,11 +63,6 @@ public class TestWorker : MonoBehaviour
     #region Initialization
     private void InitializeTestWorker()
     {
-        // Initialize base stats
-        CurrentMovementSpeed = WorkerBaseStats.movementSpeed;
-        CurrentStationEfficiency = WorkerBaseStats.stationEfficiency;
-        CurrentMovementMethod = NormalMove;
-
         // Set initial state
         currentStatus = WorkerStatus.AtStation;
         currentStationId = StationId.Rest;
@@ -104,7 +70,7 @@ public class TestWorker : MonoBehaviour
         // Register with KitchenManager if it exists
         if (KitchenManager.instance != null)
         {
-            KitchenManager.instance.addWorker(ConvertToWorker());
+            KitchenManager.instance.addWorker(this);
         }
 
         // Initialize test items
@@ -122,9 +88,8 @@ public class TestWorker : MonoBehaviour
 
                 if (item != null)
                 {
-                    // Convert this TestWorker to Worker for item compatibility
-                    Worker workerComponent = ConvertToWorker();
-                    item.PreLoad(workerComponent);
+                    // Now we can use this TestWorker directly with items (no conversion needed)
+                    item.PreLoad(this);
                     item.OnStackModified(itemConfig.stackCount);
                     equippedItems.Add(item);
 
@@ -132,30 +97,6 @@ public class TestWorker : MonoBehaviour
                 }
             }
         }
-    }
-
-    // Create a Worker component dynamically for item compatibility
-    private Worker ConvertToWorker()
-    {
-        Worker worker = gameObject.GetComponent<Worker>();
-        if (worker == null)
-        {
-            worker = gameObject.AddComponent<Worker>();
-        }
-
-        // Copy relevant properties
-        worker.CurrentMovementSpeed = CurrentMovementSpeed;
-        worker.CurrentStationEfficiency = CurrentStationEfficiency;
-        worker.currentStatus = currentStatus;
-        worker.currentStationId = currentStationId;
-        worker.CurrentMovementMethod = CurrentMovementMethod;
-        worker.stationProgress = stationProgress;
-        worker.onPrepStarted = onPrepStarted;
-        worker.onPrepFinished = onPrepFinished;
-        worker.onMovementStarted = onMovementStarted;
-        worker.initializeMovementMethod = initializeMovementMethod;
-
-        return worker;
     }
     #endregion
 
@@ -212,23 +153,6 @@ public class TestWorker : MonoBehaviour
         };
     }
 
-    [ContextMenu("Reset Test Items")]
-    public void ResetTestItems()
-    {
-        // Clear existing items
-        foreach (var item in equippedItems)
-        {
-            if (item != null)
-            {
-                DestroyImmediate(item.gameObject);
-            }
-        }
-        equippedItems.Clear();
-
-        // Reinitialize items
-        InitializeTestItems();
-        Debug.Log("Test items reset and reinitialized");
-    }
     #endregion
 
     #region Test Execution
@@ -237,10 +161,8 @@ public class TestWorker : MonoBehaviour
         while (isTestRunning)
         {
             if (testTasks.Count == 0) break;
-
             TestTask currentTask = testTasks[currentTaskIndex];
             Debug.Log($"Executing task {currentTaskIndex + 1}/{testTasks.Count}: {currentTask.taskDescription} at {currentTask.stationId}");
-
             yield return StartCoroutine(ExecuteTestTask(currentTask));
 
             // Wait between tasks
@@ -273,14 +195,20 @@ public class TestWorker : MonoBehaviour
 
     private IEnumerator ExecuteTestTask(TestTask task)
     {
+        // Set current work station (like Worker script does)
+        SetCurrentWorkStation(task.stationId);
+
         // Move to the station
         yield return StartCoroutine(MoveToStation(task.stationId));
+
+        // Calculate station wait time with efficiency (like Worker script)
+        float stationWaitTime = CalculateStationWaitTime(task.workDuration);
 
         // Trigger prep started event
         onPrepStarted?.Invoke(task.taskDescription);
 
-        // Work at the station
-        yield return StartCoroutine(WorkAtStation(task.workDuration));
+        // Use the same countdown logic as Worker script
+        yield return StartCoroutine(CountdownCoroutine(stationWaitTime));
 
         // Trigger prep finished event
         onPrepFinished?.Invoke();
@@ -288,34 +216,71 @@ public class TestWorker : MonoBehaviour
         Debug.Log($"Completed task: {task.taskDescription}");
     }
 
-    private IEnumerator WorkAtStation(float workTime)
+    private void SetCurrentWorkStation(StationId stationId)
     {
-        float remainingTime = workTime;
+        if (KitchenManager.instance != null)
+        {
+            currentWorkStation = KitchenManager.instance.GetStation(stationId);
+        }
+    }
 
-        // Reset progress bar
+    private float CalculateStationWaitTime(float baseTime)
+    {
+        // Same logic as Worker script
+        float efficiencyMultiplier = 1 + CurrentStationEfficiency;
+        return Mathf.Max(0.01f, baseTime / efficiencyMultiplier);
+    }
+    #endregion
+
+    #region Timing and Progress (Copied from Worker)
+    private IEnumerator CountdownCoroutine(float totalWaitTime)
+    {
+        // Trigger station work started event if we have a current work station
+        currentWorkStation?.stationWorkStarted?.Invoke(this);
+
+        float remainingTime = totalWaitTime;
+        ResetProgressBar();
+
+        while (remainingTime > 0f)
+        {
+            float timeReductionThisFrame = CalculateTimeReduction();
+            remainingTime = UpdateRemainingTime(remainingTime, timeReductionThisFrame);
+            UpdateProgressBar(totalWaitTime, remainingTime);
+
+            yield return null; // Wait for next frame
+        }
+
+        CompleteProgressBar();
+    }
+
+    private void ResetProgressBar()
+    {
         if (stationProgress != null)
         {
             stationProgress.fillAmount = 0;
         }
+    }
 
-        while (remainingTime > 0f)
-        {
-            remainingTime -= Time.deltaTime;
+    private float UpdateRemainingTime(float currentRemainingTime, float reductionAmount)
+    {
+        currentRemainingTime -= reductionAmount;
+        return Mathf.Max(0f, currentRemainingTime);
+    }
 
-            // Update progress bar
-            if (stationProgress != null)
-            {
-                float progress = (workTime - remainingTime) / workTime;
-                stationProgress.fillAmount = Mathf.Clamp01(progress);
-            }
-
-            yield return null;
-        }
-
-        // Complete progress bar
+    private void UpdateProgressBar(float totalTime, float timeRemaining)
+    {
         if (stationProgress != null)
         {
-            stationProgress.fillAmount = 1.0f;
+            float completionPercentage = (totalTime - timeRemaining) / totalTime;
+            stationProgress.fillAmount = completionPercentage;
+        }
+    }
+
+    private void CompleteProgressBar()
+    {
+        if (stationProgress != null)
+        {
+            stationProgress.fillAmount = 1;
         }
     }
     #endregion
@@ -337,120 +302,24 @@ public class TestWorker : MonoBehaviour
             }
         }
 
-        // Use current movement method
+        // Use current movement method (inherited from BaseWorker)
         yield return StartCoroutine(CurrentMovementMethod(destinationStationId));
-    }
-
-    private IEnumerator NormalMove(StationId destinationStationId)
-    {
-        if (destinationStationId == currentStationId)
-        {
-            yield break;
-        }
-
-        // Release current station if occupied
-        if (currentStatus == WorkerStatus.AtStation && KitchenManager.instance != null)
-        {
-            Station currentStation = KitchenManager.instance.GetStation(currentStationId);
-            currentStation?.ReleaseStandingLocation(ConvertToWorker());
-        }
-
-        if (KitchenManager.instance == null)
-        {
-            Debug.LogWarning("KitchenManager not found, using simplified movement");
-            yield return StartCoroutine(SimpleMove(destinationStationId));
-            yield break;
-        }
-
-        Station destinationStation = KitchenManager.instance.GetStation(destinationStationId);
-        if (destinationStation == null)
-        {
-            Debug.LogWarning($"Station {destinationStationId} not found!");
-            yield break;
-        }
-
-        Transform availableSlot = destinationStation.ReserveAvailableStandingLocation(ConvertToWorker());
-        currentStationId = destinationStationId;
-        currentWorkStation = destinationStation;
-
-        if (availableSlot != null)
-        {
-            yield return StartCoroutine(MoveToPosition(availableSlot.position));
-            currentStatus = WorkerStatus.AtStation;
-        }
-        else
-        {
-            Debug.Log("No available slots, waiting...");
-            yield return StartCoroutine(WaitForSlot(destinationStation));
-        }
-
-        // Trigger movement started event
-        onMovementStarted?.Invoke(Enum.GetName(typeof(StationId), destinationStationId));
-    }
-
-    private IEnumerator SimpleMove(StationId destinationStationId)
-    {
-        // Fallback movement when no KitchenManager
-        Vector3 targetPosition = transform.position + Vector3.right * 2f; // Simple offset
-        yield return StartCoroutine(MoveToPosition(targetPosition));
-
-        currentStationId = destinationStationId;
-        currentStatus = WorkerStatus.AtStation;
-    }
-
-    private IEnumerator MoveToPosition(Vector3 targetPosition)
-    {
-        Vector3 startPosition = transform.position;
-        float distance = Vector3.Distance(startPosition, targetPosition);
-        float travelTime = distance / CurrentMovementSpeed;
-        float elapsed = 0f;
-
-        currentStatus = WorkerStatus.Running;
-
-        while (elapsed < travelTime && !interruptMovementFlag)
-        {
-            elapsed += Time.deltaTime;
-            float progress = elapsed / travelTime;
-            transform.position = Vector3.Lerp(startPosition, targetPosition, progress);
-            yield return null;
-        }
-
-        if (interruptMovementFlag)
-        {
-            interruptMovementFlag = false;
-            postInterruptAction?.Invoke();
-            postInterruptAction = null;
-        }
-        else
-        {
-            transform.position = targetPosition;
-            currentStatus = WorkerStatus.AtStation;
-        }
-    }
-
-    private IEnumerator WaitForSlot(Station station)
-    {
-        Transform freedSlot = null;
-        Action<Transform> onSlotFreed = (Transform slot) => {
-            freedSlot = slot;
-        };
-
-        station.ReserveUnavailableStandingLocation(onSlotFreed);
-        currentStatus = WorkerStatus.Waiting;
-
-        yield return new WaitUntil(() => freedSlot != null);
-
-        yield return StartCoroutine(MoveToPosition(freedSlot.position));
-        currentStatus = WorkerStatus.AtStation;
     }
     #endregion
 
-    #region Public Interface
-    public bool isFree()
+    #region BaseWorker Implementation
+    public override bool isFree()
     {
         return !isTestRunning && currentStationId == StationId.Rest;
     }
 
+    public override void Rest()
+    {
+        StartCoroutine(CurrentMovementMethod(StationId.Rest));
+    }
+    #endregion
+
+    #region Public Interface
     public void AddTestTask(StationId stationId, float duration, string description = "Test Task")
     {
         testTasks.Add(new TestTask
@@ -485,7 +354,6 @@ public class TestWorker : MonoBehaviour
         GUILayout.Label($"Test Worker Status: {currentStatus}");
         GUILayout.Label($"Current Station: {currentStationId}");
         GUILayout.Label($"Task: {currentTaskIndex + 1}/{testTasks.Count}");
-        GUILayout.Label($"Items Equipped: {equippedItems.Count}");
 
         if (GUILayout.Button("Start Test"))
             StartTest();

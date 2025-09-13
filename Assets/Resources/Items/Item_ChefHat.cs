@@ -7,7 +7,7 @@ using System.Runtime.CompilerServices;
 public class Item_ChefHat : Item
 {
     
-    public override void PreLoad(Worker _ItemOwner)
+    public override void PreLoad(BaseWorker _ItemOwner)
     {
         base.PreLoad(_ItemOwner);
         Action cleanup = null;
@@ -43,7 +43,7 @@ public class Item_ChefHat : Item
             w.RecieveBonusReduction(0.5f * currentStackCount);
         });
 
-        currentWorkstation.stationWorkStarted += (Worker w) => 
+        currentWorkstation.stationWorkStarted += (BaseWorker w) => 
         {
             if(w == ItemOwner) return; //skip self            
             w.RecieveBonusReduction(0.5f * currentStackCount);

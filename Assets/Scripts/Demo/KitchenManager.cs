@@ -5,7 +5,7 @@ using UnityEngine;
 public class KitchenManager : MonoBehaviour
 {
     public static KitchenManager instance;
-    public List<Worker> workers;
+    public List<BaseWorker> workers;
     public List<Order> orders;
     public List<Station> stations;
 
@@ -14,7 +14,7 @@ public class KitchenManager : MonoBehaviour
     void Start()
     {
         instance = this;
-        workers = new List<Worker>();
+        workers = new List<BaseWorker>();
         orders = new List<Order>();
         stations = new List<Station>();
     }
@@ -30,7 +30,7 @@ public class KitchenManager : MonoBehaviour
         return stations.FirstOrDefault(s => s.StationId == stationId);
     }
 
-    public void addWorker(Worker _worker)
+    public void addWorker(BaseWorker _worker)
     {
         workers.Add(_worker);
     }
@@ -41,7 +41,7 @@ public class KitchenManager : MonoBehaviour
 
         if (freeWorkerAvailable)
         {
-            Worker availableWorker = workers.First(worker => worker.isFree());
+            Worker availableWorker = workers.First(worker => worker.isFree()) as Worker;
             availableWorker.startOrder(order);
 
         }

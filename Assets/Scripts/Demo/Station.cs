@@ -11,7 +11,7 @@ public class Station : MonoBehaviour
     public Transform[] standingLocations;
     public float stationTime;
     public StationId StationId;
-    public Action<Worker> stationWorkStarted;
+    public Action<BaseWorker> stationWorkStarted;
 
     private Dictionary<Transform, Worker> occupiedSlots = new Dictionary<Transform, Worker>();
     private List<Action<Transform>> waitingQueue = new List<Action<Transform>>();

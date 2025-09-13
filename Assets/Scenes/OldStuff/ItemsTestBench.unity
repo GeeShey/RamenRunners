@@ -418,7 +418,7 @@ MonoBehaviour:
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 118636481}
-  m_Enabled: 0
+  m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: fa0dcdb9b0c30284a97b470537498d68, type: 3}
   m_Name: 
@@ -2037,6 +2037,14 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 84a941c5504a73d479bb3e1fac12af20, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  CurrentMovementSpeed: 1
+  CurrentStationEfficiency: 1
+  currentStatus: 0
+  currentStationId: 0
+  currentWorkStation: {fileID: 1909095216}
+  stationProgress: {fileID: 821629706}
+  fillInterval: 1
+  vfxManager: {fileID: 479472874}
   enableTestMode: 1
   testTasks:
   - stationId: 2
@@ -2049,14 +2057,7 @@ MonoBehaviour:
   loopTasks: 1
   delayBetweenTasks: 0
   autoStartOnPlay: 1
-  CurrentMovementSpeed: 1
-  CurrentStationEfficiency: 1
   equippedItems: []
-  currentStatus: 0
-  currentStationId: 0
-  currentWorkStation: {fileID: 1909095216}
-  stationProgress: {fileID: 821629706}
-  fillInterval: 1
 --- !u!4 &492909172 stripped
 Transform:
   m_CorrespondingSourceObject: {fileID: 8559737562297277420, guid: c77d35ee17ba0984c9c5dfa4e07b00de, type: 3}

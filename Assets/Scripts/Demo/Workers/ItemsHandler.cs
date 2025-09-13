@@ -5,10 +5,10 @@ using System;
 
 public class ItemsHandler : MonoBehaviour
 {
-    private Worker worker;
+    private BaseWorker worker;
     private void Start()
     {
-        worker = GetComponent<Worker>();
+        worker = GetComponent<BaseWorker>();
     }
     public Dictionary<string, Component> itemDictionary = new Dictionary<string, Component>();
     public void EquipItem(string id)
