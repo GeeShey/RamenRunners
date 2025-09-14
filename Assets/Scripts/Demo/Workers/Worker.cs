@@ -278,7 +278,7 @@ public class Worker : BaseWorker
             yield return WaitForCarArrival();
         }
 
-        currentWorkStation.stationWorkStarted?.Invoke(this);
+        currentWorkStation.SomeoneStartedWorkAtStation?.Invoke(this);
 
         float remainingTime = totalWaitTime;
         ResetProgressBar();
@@ -500,10 +500,6 @@ public class Worker : BaseWorker
 
     #region Editor Helpers
     //PROGRAMMING/EDITOR HELPERS 
-    public void InitializeWorker()
-    {
-        currentStatus = WorkerStatus.AtStation;
-        currentStationId = StationId.Rest;
-    }
+
     #endregion
 }

@@ -10,17 +10,7 @@ public class Item_ChefHat : Item
     public override void PreLoad(BaseWorker _ItemOwner)
     {
         base.PreLoad(_ItemOwner);
-        Action cleanup = null;
-
-        cleanup = () =>
-            {
-                ItemOwner.onPrepStarted -= ChefHatLogic;
-                ItemOwner.onPrepFinished -= cleanup;
-            };
-
         ItemOwner.onPrepStarted += ChefHatLogic;
-        ItemOwner.onPrepFinished += cleanup;
-
     }
 
     public override void OnStackModified(int count)
@@ -34,23 +24,40 @@ public class Item_ChefHat : Item
 
         //get the workers working on the station
         Station currentWorkstation = ItemOwner.currentWorkStation;
-        List<Worker> workersInSameStation= currentWorkstation.GetAllWorkers();
+        List<BaseWorker> workersInSameStation= currentWorkstation.GetAllWorkers();
 
+        foreach(var w in workersInSameStation)
+        {
+            if(w==null)
+            {
+                Debug.Log("null name");
+                continue;
+            }
+                    
+            Debug.Log("Worker at station: " + w.name);
+        }
         workersInSameStation
         .ForEach(w => 
         {
-            if(w == ItemOwner) return; //skip self            
+            if(w==null || w == ItemOwner) return; //skip self            
             w.RecieveBonusReduction(0.5f * currentStackCount);
         });
 
-        currentWorkstation.stationWorkStarted += (BaseWorker w) => 
+        currentWorkstation.SomeoneStartedWorkAtStation += GiveWorkerBonus;
+        
+        ItemOwner.onPrepFinished += () =>
         {
-            if(w == ItemOwner) return; //skip self            
-            w.RecieveBonusReduction(0.5f * currentStackCount);
+            currentWorkstation.SomeoneStartedWorkAtStation -= GiveWorkerBonus;
         };
 
 
 
+    }
+
+    public void GiveWorkerBonus(BaseWorker w)
+    {
+        if (w == ItemOwner) return; //skip self            
+        w.RecieveBonusReduction(0.5f * currentStackCount);
     }
 
 

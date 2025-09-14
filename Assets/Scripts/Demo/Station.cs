@@ -11,9 +11,9 @@ public class Station : MonoBehaviour
     public Transform[] standingLocations;
     public float stationTime;
     public StationId StationId;
-    public Action<BaseWorker> stationWorkStarted;
+    public Action<BaseWorker> SomeoneStartedWorkAtStation;
 
-    private Dictionary<Transform, Worker> occupiedSlots = new Dictionary<Transform, Worker>();
+    private Dictionary<Transform, BaseWorker> occupiedSlots = new Dictionary<Transform, BaseWorker>();
     private List<Action<Transform>> waitingQueue = new List<Action<Transform>>();
 
 
@@ -23,12 +23,12 @@ public class Station : MonoBehaviour
 
     }
 
-    public List<Worker> GetAllWorkers()
+    public List<BaseWorker> GetAllWorkers()
     {
         return occupiedSlots.Values.ToList();
     }
 
-    public Transform ReserveAvailableStandingLocation( Worker worker)
+    public Transform ReserveAvailableStandingLocation( BaseWorker worker)
     {
         foreach (Transform location in standingLocations)
         {
@@ -53,7 +53,7 @@ public class Station : MonoBehaviour
         return standingLocations[0];
     }
 
-    public void ReleaseStandingLocation(Worker worker)
+    public void ReleaseStandingLocation(BaseWorker worker)
     {
         if (occupiedSlots.ContainsValue(worker))
         {

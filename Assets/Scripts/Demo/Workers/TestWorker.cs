@@ -32,6 +32,20 @@ public class TestWorker : BaseWorker
     [SerializeField] private bool autoStartOnPlay = true;
     #endregion
 
+    #region Runtime Status Display (Inspector Only)
+    [Header("Runtime Status (Read Only)")]
+    [SerializeField, HideInInspector] private string _statusDisplay;
+    [SerializeField, HideInInspector] private string _currentStationDisplay;
+    [SerializeField, HideInInspector] private string _taskProgressDisplay;
+    [SerializeField, HideInInspector] private bool _isTestRunningDisplay;
+
+    // Properties that will show in inspector
+    [SerializeField] private string StatusDisplay => $"Status: {currentStatus}";
+    [SerializeField] private string CurrentStationDisplay => $"Current Station: {currentStationId}";
+    [SerializeField] private string TaskProgressDisplay => $"Task Progress: {currentTaskIndex + 1}/{testTasks.Count}";
+    [SerializeField] private bool IsTestRunningDisplay => isTestRunning;
+    #endregion
+
     #region Test State
     private int currentTaskIndex = 0;
     private bool isTestRunning = false;
@@ -50,6 +64,14 @@ public class TestWorker : BaseWorker
         }
     }
 
+    void Update()
+    {
+        // Update inspector display values in editor
+#if UNITY_EDITOR
+        UpdateInspectorDisplay();
+#endif
+    }
+
     void OnValidate()
     {
         // Ensure we have at least one task
@@ -58,6 +80,18 @@ public class TestWorker : BaseWorker
             testTasks.Add(new TestTask { stationId = StationId.Rest, workDuration = 2.0f });
         }
     }
+    #endregion
+
+    #region Inspector Display Updates
+#if UNITY_EDITOR
+    private void UpdateInspectorDisplay()
+    {
+        _statusDisplay = $"Status: {currentStatus}";
+        _currentStationDisplay = $"Current Station: {currentStationId}";
+        _taskProgressDisplay = $"Task Progress: {currentTaskIndex + 1}/{testTasks.Count}";
+        _isTestRunningDisplay = isTestRunning;
+    }
+#endif
     #endregion
 
     #region Initialization
@@ -73,31 +107,10 @@ public class TestWorker : BaseWorker
             KitchenManager.instance.addWorker(this);
         }
 
-        // Initialize test items
-        InitializeTestItems();
+        // Initialize VFX manager
+        vfxManager = GetComponent<WokerVFXManager>();
     }
 
-    private void InitializeTestItems()
-    {
-        foreach (var itemConfig in testItems)
-        {
-            if (itemConfig.itemPrefab != null)
-            {
-                GameObject itemObj = Instantiate(itemConfig.itemPrefab, transform);
-                Item item = itemObj.GetComponent<Item>();
-
-                if (item != null)
-                {
-                    // Now we can use this TestWorker directly with items (no conversion needed)
-                    item.PreLoad(this);
-                    item.OnStackModified(itemConfig.stackCount);
-                    equippedItems.Add(item);
-
-                    Debug.Log($"Equipped {item.ItemBasicDetails?.name ?? "Unknown Item"} with stack count {itemConfig.stackCount}");
-                }
-            }
-        }
-    }
     #endregion
 
     #region Test Control Methods
@@ -162,7 +175,7 @@ public class TestWorker : BaseWorker
         {
             if (testTasks.Count == 0) break;
             TestTask currentTask = testTasks[currentTaskIndex];
-            Debug.Log($"Executing task {currentTaskIndex + 1}/{testTasks.Count}: {currentTask.taskDescription} at {currentTask.stationId}");
+            //Debug.Log($"Executing task {currentTaskIndex + 1}/{testTasks.Count}: {currentTask.taskDescription} at {currentTask.stationId}");
             yield return StartCoroutine(ExecuteTestTask(currentTask));
 
             // Wait between tasks
@@ -180,7 +193,7 @@ public class TestWorker : BaseWorker
                 if (loopTasks)
                 {
                     currentTaskIndex = 0;
-                    Debug.Log("Looping back to first task");
+                    //Debug.Log("Looping back to first task");
                 }
                 else
                 {
@@ -198,8 +211,8 @@ public class TestWorker : BaseWorker
         // Set current work station (like Worker script does)
         SetCurrentWorkStation(task.stationId);
 
-        // Move to the station
-        yield return StartCoroutine(MoveToStation(task.stationId));
+        // Move to the station with proper slot reservation
+        yield return StartCoroutine(MoveToCurrentStation());
 
         // Calculate station wait time with efficiency (like Worker script)
         float stationWaitTime = CalculateStationWaitTime(task.workDuration);
@@ -213,7 +226,7 @@ public class TestWorker : BaseWorker
         // Trigger prep finished event
         onPrepFinished?.Invoke();
 
-        Debug.Log($"Completed task: {task.taskDescription}");
+        //Debug.Log($"Completed task: {task.taskDescription}");
     }
 
     private void SetCurrentWorkStation(StationId stationId)
@@ -232,11 +245,189 @@ public class TestWorker : BaseWorker
     }
     #endregion
 
-    #region Timing and Progress (Copied from Worker)
+    #region Movement System - TestWorker-specific implementation
+    private IEnumerator MoveToCurrentStation()
+    {
+        // Call initialize movement method (for items like Sandevistan)
+        if (initializeMovementMethod != null)
+        {
+            foreach (Func<IEnumerator> action in initializeMovementMethod.GetInvocationList())
+            {
+                yield return StartCoroutine(action?.Invoke());
+            }
+        }
+
+        // Use the enhanced movement method with slot reservation
+        yield return StartCoroutine(CurrentMovementMethod(currentWorkStation.StationId));
+    }
+
+    protected override IEnumerator NormalMove(StationId destinationStationId)
+    {
+        if (IsAlreadyAtDestination(destinationStationId))
+        {
+            yield return null;
+        }
+
+        ReleaseCurrentStationIfOccupied();
+
+        Vector3 startingPosition = transform.position;
+        Station destinationStation = KitchenManager.instance.GetStation(destinationStationId);
+        Transform availableSlot = destinationStation.ReserveAvailableStandingLocation(this);
+        currentStationId = destinationStationId;
+
+        if (HasAvailableSlot(availableSlot))
+        {
+            yield return StartCoroutine(MoveDirectlyToSlot(startingPosition, availableSlot.position));
+        }
+        else
+        {
+            yield return StartCoroutine(MoveWithWaitingForSlot(startingPosition, destinationStation));
+        }
+    }
+
+    private bool IsAlreadyAtDestination(StationId destination)
+    {
+        return destination == currentStationId && currentStatus == WorkerStatus.AtStation;
+    }
+
+    private void ReleaseCurrentStationIfOccupied()
+    {
+        if (currentStatus == WorkerStatus.AtStation)
+        {
+            KitchenManager.instance.GetStation(currentStationId).ReleaseStandingLocation(this);
+        }
+    }
+
+    private bool HasAvailableSlot(Transform slotTransform)
+    {
+        return slotTransform != null;
+    }
+
+    private IEnumerator MoveDirectlyToSlot(Vector3 startPosition, Vector3 targetPosition)
+    {
+        float totalDistance = (startPosition - targetPosition).magnitude;
+        float totalTravelTime = totalDistance / CurrentMovementSpeed;
+        float movementProgress = 0.0f;
+        float movementStartTime = Time.time;
+
+        TriggerMovementStartedEvent();
+
+        while (movementProgress < 1.0f && !interruptMovementFlag)
+        {
+            movementProgress = CalculateMovementProgress(movementStartTime, totalTravelTime);
+            UpdateWorkerPosition(startPosition, targetPosition, movementProgress);
+            currentStatus = WorkerStatus.Running;
+            yield return null;
+        }
+
+        HandleMovementCompletion();
+    }
+
+    private void TriggerMovementStartedEvent()
+    {
+        string stationName = Enum.GetName(typeof(StationId), currentStationId);
+        onMovementStarted?.Invoke(stationName);
+    }
+
+    private float CalculateMovementProgress(float startTime, float totalTime)
+    {
+        float elapsedTime = Time.time - startTime;
+        float progress = elapsedTime / totalTime;
+        return Mathf.Clamp01(progress);
+    }
+
+    private void UpdateWorkerPosition(Vector3 start, Vector3 end, float progress)
+    {
+        transform.position = Vector3.Lerp(start, end, progress);
+    }
+
+    private void HandleMovementCompletion()
+    {
+        if (interruptMovementFlag)
+        {
+            ProcessMovementInterruption();
+        }
+        else
+        {
+            currentStatus = WorkerStatus.AtStation;
+        }
+    }
+
+    private void ProcessMovementInterruption()
+    {
+        interruptMovementFlag = false;
+        postInterruptAction?.Invoke();
+        postInterruptAction = null;
+    }
+
+    private IEnumerator MoveWithWaitingForSlot(Vector3 startPosition, Station targetStation)
+    {
+        Vector3 defaultSlotPosition = targetStation.GetDefaultSlot().position;
+        float totalDistance = (startPosition - defaultSlotPosition).magnitude;
+        float totalTravelTime = totalDistance / CurrentMovementSpeed;
+
+        Transform freedSlotTransform = null;
+        Action<Transform> onSlotFreed = (Transform slot) => {
+            freedSlotTransform = slot;
+        };
+        targetStation.ReserveUnavailableStandingLocation(onSlotFreed);
+
+        // Move halfway to default slot
+        yield return StartCoroutine(MoveToWaitingPosition(startPosition, defaultSlotPosition, totalTravelTime));
+
+        currentStatus = WorkerStatus.Waiting;
+
+        // Wait for slot to become available
+        yield return new WaitUntil(() => freedSlotTransform != null);
+
+        // Move from current position to the freed slot
+        yield return StartCoroutine(MoveToFreedSlot(freedSlotTransform));
+    }
+
+    private IEnumerator MoveToWaitingPosition(Vector3 start, Vector3 defaultSlot, float totalTime)
+    {
+        float movementProgress = 0.0f;
+        float startTime = Time.time;
+
+        while (movementProgress <= 0.5f)
+        {
+            movementProgress = CalculateMovementProgress(startTime, totalTime);
+            movementProgress = Mathf.Clamp01(movementProgress);
+            UpdateWorkerPosition(start, defaultSlot, movementProgress);
+            currentStatus = WorkerStatus.Running;
+            yield return null;
+        }
+    }
+
+    private IEnumerator MoveToFreedSlot(Transform freedSlot)
+    {
+        Vector3 currentPosition = transform.position;
+        Vector3 finalPosition = freedSlot.position;
+        float remainingDistance = (currentPosition - finalPosition).magnitude;
+        float remainingTravelTime = remainingDistance / CurrentMovementSpeed;
+        float secondPhaseProgress = 0.0f;
+        float secondPhaseStartTime = Time.time;
+
+        while (secondPhaseProgress < 1.0f && !interruptMovementFlag)
+        {
+            secondPhaseProgress = CalculateMovementProgress(secondPhaseStartTime, remainingTravelTime);
+            UpdateWorkerPosition(currentPosition, finalPosition, secondPhaseProgress);
+            currentStatus = WorkerStatus.Running;
+            yield return null;
+        }
+
+        HandleMovementCompletion();
+    }
+    #endregion
+
+    #region Timing and Progress
     private IEnumerator CountdownCoroutine(float totalWaitTime)
     {
         // Trigger station work started event if we have a current work station
-        currentWorkStation?.stationWorkStarted?.Invoke(this);
+        if (currentWorkStation != null)
+        {
+            currentWorkStation.SomeoneStartedWorkAtStation?.Invoke(this);
+        }
 
         float remainingTime = totalWaitTime;
         ResetProgressBar();
@@ -285,28 +476,6 @@ public class TestWorker : BaseWorker
     }
     #endregion
 
-    #region Movement System
-    private IEnumerator MoveToStation(StationId destinationStationId)
-    {
-        if (destinationStationId == currentStationId && currentStatus == WorkerStatus.AtStation)
-        {
-            yield break;
-        }
-
-        // Call initialize movement method (for items like Sandevistan)
-        if (initializeMovementMethod != null)
-        {
-            foreach (Func<IEnumerator> action in initializeMovementMethod.GetInvocationList())
-            {
-                yield return StartCoroutine(action?.Invoke());
-            }
-        }
-
-        // Use current movement method (inherited from BaseWorker)
-        yield return StartCoroutine(CurrentMovementMethod(destinationStationId));
-    }
-    #endregion
-
     #region BaseWorker Implementation
     public override bool isFree()
     {
@@ -342,29 +511,6 @@ public class TestWorker : BaseWorker
             itemPrefab = itemPrefab,
             stackCount = stackCount
         });
-    }
-    #endregion
-
-    #region Debug Info
-    void OnGUI()
-    {
-        if (!enableTestMode) return;
-
-        GUILayout.BeginArea(new Rect(10, 10, 300, 200));
-        GUILayout.Label($"Test Worker Status: {currentStatus}");
-        GUILayout.Label($"Current Station: {currentStationId}");
-        GUILayout.Label($"Task: {currentTaskIndex + 1}/{testTasks.Count}");
-
-        if (GUILayout.Button("Start Test"))
-            StartTest();
-
-        if (GUILayout.Button("Stop Test"))
-            StopTest();
-
-        if (GUILayout.Button("Next Task"))
-            NextTask();
-
-        GUILayout.EndArea();
     }
     #endregion
 }

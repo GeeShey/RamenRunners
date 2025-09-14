@@ -50,9 +50,9 @@ public abstract class BaseWorker : MonoBehaviour
 
 
     #region Events (For Item Compatibility)
-    public Action<string> onPrepStarted;
     public Action onPrepFinished;
     public Action<string> onMovementStarted;
+    public Action<string> onPrepStarted;
     public Func<IEnumerator> initializeMovementMethod;
     #endregion
 
@@ -230,4 +230,10 @@ public abstract class BaseWorker : MonoBehaviour
         currentStatus = WorkerStatus.AtStation;
     }
     #endregion
+
+    public void InitializeWorker()
+    {
+        currentStatus = WorkerStatus.AtStation;
+        currentStationId = StationId.Rest;
+    }
 }
