@@ -30,19 +30,19 @@ public class KitchenManager : MonoBehaviour
         return stations.FirstOrDefault(s => s.StationId == stationId);
     }
 
-    public void addWorker(BaseWorker _worker)
+    public void AddWorker(BaseWorker worker)
     {
-        workers.Add(_worker);
+        workers.Add(worker);
     }
 
     public void EnqueOrder(Order order)
     {
-        bool freeWorkerAvailable = workers.Any(worker => worker.isFree());
+        bool freeWorkerAvailable = workers.Any(worker => worker.IsFree());
 
         if (freeWorkerAvailable)
         {
-            Worker availableWorker = workers.First(worker => worker.isFree()) as Worker;
-            availableWorker.startOrder(order);
+            Worker availableWorker = workers.First(worker => worker.IsFree()) as Worker;
+            availableWorker.StartOrder(order);
 
         }
         orders.Add(order);
@@ -56,7 +56,7 @@ public class KitchenManager : MonoBehaviour
         {
             Order pendingOrder = orders.First(order => order.status == OrderStatus.NotStarted);
             orders.Remove(pendingOrder);
-            worker.startOrder(pendingOrder);
+            worker.StartOrder(pendingOrder);
             return true;
         }
         else
@@ -66,13 +66,13 @@ public class KitchenManager : MonoBehaviour
         }
     }
 
-    public Worker getWorker()
+    public Worker GetWorker()
     {
         return null;
 
     }
 
-    public StationId[] getAvailableStations()
+    public StationId[] GetAvailableStations()
     {
         List<StationId> availableStations = new List<StationId>();
 

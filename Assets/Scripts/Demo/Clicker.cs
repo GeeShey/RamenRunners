@@ -45,7 +45,7 @@ public class Clicker : MonoBehaviour
     {
         string workerName = worker.name;
         BaseWorker clickedWorker = KitchenManager.instance.workers.Find(worker => worker.gameObject.name == workerName);
-        clickedWorker.RecieveBonusReduction();
+        clickedWorker.ReceiveBonusReduction();
     }
 
     // Public method to cast ray from any screen position

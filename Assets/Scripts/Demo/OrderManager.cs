@@ -65,7 +65,7 @@ public class OrderManager : MonoBehaviour
     {
         Order order = new Order();
         order.id = "OD001";
-        DishSo dish = FoodMap.instance.getRandomDish(KitchenManager.instance.getAvailableStations());        
+        DishSo dish = FoodMap.instance.getRandomDish(KitchenManager.instance.GetAvailableStations());        
         order.dish = dish;
         order.orderValue = dish.itemPrice;
         order.status = OrderStatus.NotStarted;

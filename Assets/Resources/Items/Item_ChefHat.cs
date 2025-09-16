@@ -1,64 +1,82 @@
-using UnityEditor.Build.Content;
 using UnityEngine;
 using System.Collections.Generic;
-using System;
-using System.Runtime.CompilerServices;
 
 public class Item_ChefHat : Item
 {
-    
+    [SerializeField] private float bonusPerStack = 0.5f;
+
+    private Station currentWorkstation;
+    private bool subscribed;
+
     public override void PreLoad(BaseWorker _ItemOwner)
     {
         base.PreLoad(_ItemOwner);
-        ItemOwner.onPrepStarted += ChefHatLogic;
+        Subscribe();
     }
 
-    public override void OnStackModified(int count)
+    public override bool OnStackModified(int count)
     {
-        currentStackCount += count;
-
+        return base.OnStackModified(count);
     }
 
-    private void ChefHatLogic(string prepText)
+    private void Subscribe()
     {
-
-        //get the workers working on the station
-        Station currentWorkstation = ItemOwner.currentWorkStation;
-        List<BaseWorker> workersInSameStation= currentWorkstation.GetAllWorkers();
-
-        foreach(var w in workersInSameStation)
+        if (ItemOwner != null && !subscribed)
         {
-            if(w==null)
-            {
-                Debug.Log("null name");
-                continue;
-            }
-                    
-            Debug.Log("Worker at station: " + w.name);
+            ItemOwner.OnPrepStarted += OnPrepStarted;
+            ItemOwner.OnPrepFinished += OnPrepFinished;
+            subscribed = true;
         }
-        workersInSameStation
-        .ForEach(w => 
+    }
+
+    private void Unsubscribe()
+    {
+        if (ItemOwner != null && subscribed)
         {
-            if(w==null || w == ItemOwner) return; //skip self            
-            w.RecieveBonusReduction(0.5f * currentStackCount);
-        });
+            ItemOwner.OnPrepStarted -= OnPrepStarted;
+            ItemOwner.OnPrepFinished -= OnPrepFinished;
+            if (currentWorkstation != null)
+            {
+                currentWorkstation.SomeoneStartedWorkAtStation -= GiveWorkerBonus;
+            }
+            subscribed = false;
+        }
+    }
+
+    private void OnPrepStarted(string _)
+    {
+        currentWorkstation = ItemOwner.WorkStation;
+        if (currentWorkstation == null) return;
+
+        List<BaseWorker> workersInSameStation = currentWorkstation.GetAllWorkers();
+        float totalBonus = bonusPerStack * CurrentStackCount;
+
+        foreach (var w in workersInSameStation)
+        {
+            if (w == null || w == ItemOwner) continue;
+            w.ReceiveBonusReduction(totalBonus);
+        }
 
         currentWorkstation.SomeoneStartedWorkAtStation += GiveWorkerBonus;
-        
-        ItemOwner.onPrepFinished += () =>
+    }
+
+    private void OnPrepFinished()
+    {
+        if (currentWorkstation != null)
         {
             currentWorkstation.SomeoneStartedWorkAtStation -= GiveWorkerBonus;
-        };
+        }
+    }
 
-
-
+    private void OnDestroy()
+    {
+        Unsubscribe();
     }
 
     public void GiveWorkerBonus(BaseWorker w)
     {
-        if (w == ItemOwner) return; //skip self            
-        w.RecieveBonusReduction(0.5f * currentStackCount);
+        if (w == null || w == ItemOwner) return;
+        float totalBonus = bonusPerStack * CurrentStackCount;
+        w.ReceiveBonusReduction(totalBonus);
     }
-
-
 }

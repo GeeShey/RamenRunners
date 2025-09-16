@@ -2,104 +2,234 @@ using System;
 using System.Collections;
 using UnityEngine;
 
-//example of an item
+/// <summary>
+/// Sandevistan item that provides teleportation abilities to workers.
+/// Has a chance to teleport instead of normal movement, with probability scaling with stack count.
+/// </summary>
 public class Item_Sandevistan : Item
 {
-    public BaseWorker.MovementMethod PreviousMovementMethod; // Updated reference
-    public float BaseTeleportProbability = 0.025f;
-    public float CurrentTeleportProbability = 0f;
+    #region Inspector Fields
+    [Header("Sandevistan Configuration")]
+    [SerializeField] private float baseTeleportProbability = 1.0f;
+    [SerializeField] private float probabilityPerStack = 1.0f;
+    #endregion
 
-    public override void PreLoad(BaseWorker _ItemOwner) // Changed parameter type
+    #region Private Fields
+    private BaseWorker.MovementMethod previousMovementMethod;
+    private float currentTeleportProbability = 0f;
+    private bool isSubscribedToEvents = false;
+    #endregion
+
+    #region Properties
+    public float CurrentTeleportProbability => currentTeleportProbability;
+    #endregion
+
+    #region Override Methods
+    public override void PreLoad(BaseWorker itemOwner)
     {
-        base.PreLoad(_ItemOwner);
-        _ItemOwner.initializeMovementMethod += AboutToStartMoving;
+        base.PreLoad(itemOwner);
+        LogDebug($"Sandevistan PreLoad called for worker: {itemOwner.name}");
+        SubscribeToEvents();
+        UpdateTeleportProbability();
     }
 
-    public override void OnStackModified(int count)
+    protected override bool OnItemUsed()
     {
-        currentStackCount += count;
-        BaseTeleportProbability = 1.0f * currentStackCount;
-        CurrentTeleportProbability = BaseTeleportProbability;
+        LogDebug($"Sandevistan {name} used - attempting teleport");
+        return true;
     }
 
-    public IEnumerator AboutToStartMoving()
+    protected override void OnStackCountChanged(int newCount)
     {
-        bool goodDiceRoll = DiceRoll();
-        if (goodDiceRoll)
+        LogDebug($"Sandevistan stack changed to: {newCount}");
+        UpdateTeleportProbability();
+    }
+
+    protected override void OnItemDepleted()
+    {
+        LogDebug($"Sandevistan {name} depleted - removing teleport ability");
+        UnsubscribeFromEvents();
+    }
+    #endregion
+
+    #region Event Handling
+    private void SubscribeToEvents()
+    {
+        if (ItemOwner != null && !isSubscribedToEvents)
         {
-            PreviousMovementMethod = ItemOwner.CurrentMovementMethod;
-            ItemOwner.CurrentMovementMethod = SandevistanTeleport;
+            // Store the original movement method and set our teleport method
+            previousMovementMethod = ItemOwner.InitializeMovementMethod;
+            ItemOwner.InitializeMovementMethod = OnAboutToStartMoving;
+            isSubscribedToEvents = true;
+            LogDebug("Sandevistan movement method activated");
         }
-        yield break;
     }
 
-    public bool DiceRoll()
+    private void UnsubscribeFromEvents()
     {
-        if (CurrentTeleportProbability >= 1f)
-            return true;
-
-        bool goodDiceRoll = false;
-        if (UnityEngine.Random.value < CurrentTeleportProbability)
+        if (ItemOwner != null && isSubscribedToEvents)
         {
-            goodDiceRoll = true;
-            CurrentTeleportProbability = BaseTeleportProbability;
+            // Restore the original movement method
+            ItemOwner.InitializeMovementMethod = previousMovementMethod;
+            isSubscribedToEvents = false;
+            LogDebug("Sandevistan movement method deactivated");
+        }
+    }
+
+    private IEnumerator OnAboutToStartMoving(StationId destinationStationId)
+    {
+        bool shouldTeleport = RollForTeleport();
+        if (shouldTeleport)
+        {
+            LogDebug("Teleport activated!");
+            yield return StartCoroutine(SandevistanTeleport(destinationStationId));
         }
         else
         {
-            goodDiceRoll = false;
-            CurrentTeleportProbability += BaseTeleportProbability;
-            CurrentTeleportProbability = Mathf.Clamp(CurrentTeleportProbability, 0f, 1f); // Fixed the clamp
+            LogDebug("Teleport failed, using normal movement");
+            // Use the original movement method or fallback to normal movement
+            if (previousMovementMethod != null)
+            {
+                yield return StartCoroutine(previousMovementMethod(destinationStationId));
+            }
+            else
+            {
+                // Fallback: temporarily restore normal movement and call it
+                ItemOwner.InitializeMovementMethod = null;
+                yield return StartCoroutine(ItemOwner.MoveToStation(destinationStationId));
+                // Restore our method
+                ItemOwner.InitializeMovementMethod = OnAboutToStartMoving;
+            }
         }
-        Debug.Log("CurrentTeleportProbability changed to: " + CurrentTeleportProbability);
-        return goodDiceRoll;
+    }
+    #endregion
+
+    #region Teleport Logic
+    private void UpdateTeleportProbability()
+    {
+        currentTeleportProbability = baseTeleportProbability + (probabilityPerStack * CurrentStackCount);
+        currentTeleportProbability = Mathf.Clamp01(currentTeleportProbability);
+        LogDebug($"Updated teleport probability to: {currentTeleportProbability} (stacks: {CurrentStackCount})");
+    }
+
+    private bool RollForTeleport()
+    {
+        float rollValue = UnityEngine.Random.value;
+        
+        if (currentTeleportProbability >= 1f)
+        {
+            LogDebug("Guaranteed teleport (100% probability)");
+            return true;
+        }
+
+        bool teleportSuccess = rollValue < currentTeleportProbability;
+        
+        if (teleportSuccess)
+        {
+            LogDebug($"Teleport successful! (rolled {rollValue:F3} < {currentTeleportProbability:F3})");
+            currentTeleportProbability = baseTeleportProbability; // Reset on success
+        }
+        else
+        {
+            // Increase probability for next attempt
+            currentTeleportProbability += baseTeleportProbability;
+            currentTeleportProbability = Mathf.Clamp01(currentTeleportProbability);
+            LogDebug($"Teleport failed! (rolled {rollValue:F3} >= {currentTeleportProbability - baseTeleportProbability:F3}), increased probability to: {currentTeleportProbability:F3}");
+        }
+
+        return teleportSuccess;
     }
 
     private IEnumerator SandevistanTeleport(StationId destinationStationId)
     {
-        if (destinationStationId == ItemOwner.currentStationId)
+        LogDebug($"Teleporting to {destinationStationId}");
+
+        // Check if already at destination
+        if (destinationStationId == ItemOwner.CurrentStationId)
         {
-            yield return null;
+            LogDebug("Already at destination station");
+            yield break;
         }
 
-        // Release current station if at one
-        if (ItemOwner.currentStatus == WorkerStatus.AtStation)
+        // Release current station if occupied
+        if (ItemOwner.Status == WorkerStatus.AtStation)
         {
-            KitchenManager.instance.GetStation(ItemOwner.currentStationId).ReleaseStandingLocation(ItemOwner as Worker);
+            Station currentStation = KitchenManager.instance?.GetStation(ItemOwner.CurrentStationId);
+            currentStation?.ReleaseStandingLocation(ItemOwner as Worker);
         }
 
-        // Do the teleport logic
-        Vector3 startingPos = ItemOwner.transform.position;
-        Station destinationStation = KitchenManager.instance.GetStation(destinationStationId);
-        Transform slotTransform = destinationStation.ReserveAvailableStandingLocation(ItemOwner as Worker);
-
-        if (slotTransform != null)
+        // Get destination station
+        Station destinationStation = KitchenManager.instance?.GetStation(destinationStationId);
+        if (destinationStation == null)
         {
-            ItemOwner.transform.position = slotTransform.position;
-            ItemOwner.onMovementStarted?.Invoke(Enum.GetName(typeof(StationId), ItemOwner.currentStationId));
+            LogDebug($"Destination station {destinationStationId} not found!");
+            yield break;
+        }
+
+        // Try to get an available slot
+        Transform availableSlot = destinationStation.ReserveAvailableStandingLocation(ItemOwner as Worker);
+
+        if (availableSlot != null)
+        {
+            // Direct teleport to available slot
+            ItemOwner.transform.position = availableSlot.position;
+            ItemOwner.UpdateCurrentStation(destinationStationId, destinationStation);
+            ItemOwner.UpdateStatus(WorkerStatus.AtStation);
+            ItemOwner.TriggerMovementStarted(destinationStationId);
+            LogDebug($"Teleported directly to {destinationStationId}");
         }
         else
         {
-            // Set up waiting mechanism for slot
-            Transform freedSlot = null;
-            Action<Transform> onSlotFreed = (Transform slot) => {
-                freedSlot = slot;
-            };
-            destinationStation.ReserveUnavailableStandingLocation(onSlotFreed);
-
-            // Move to halfway point
-            ItemOwner.transform.position = Vector3.Lerp(startingPos, destinationStation.transform.position, 0.5f);
-
-            // Wait for slot to be free
-            ItemOwner.currentStatus = WorkerStatus.Waiting;
-            yield return new WaitUntil(() => freedSlot != null);
-
-            // Move to slot
-            ItemOwner.transform.position = freedSlot.position;
-            ItemOwner.currentStatus = WorkerStatus.AtStation;
+            // Wait for slot to become available
+            yield return StartCoroutine(WaitForSlotAndTeleport(destinationStation, destinationStationId));
         }
 
-        ItemOwner.currentStationId = destinationStationId;
-        ItemOwner.currentStatus = WorkerStatus.AtStation;
-        ItemOwner.CurrentMovementMethod = PreviousMovementMethod;
+        // Restore original movement method
+        ItemOwner.InitializeMovementMethod = previousMovementMethod;
     }
+
+    private IEnumerator WaitForSlotAndTeleport(Station destinationStation, StationId destinationStationId)
+    {
+        Transform freedSlot = null;
+        Action<Transform> onSlotFreed = (slot) => freedSlot = slot;
+
+        destinationStation.ReserveUnavailableStandingLocation(onSlotFreed);
+        ItemOwner.UpdateStatus(WorkerStatus.Waiting);
+
+        // Move to halfway point while waiting
+        Vector3 startPos = ItemOwner.transform.position;
+        Vector3 halfwayPoint = Vector3.Lerp(startPos, destinationStation.transform.position, 0.5f);
+        ItemOwner.transform.position = halfwayPoint;
+
+        LogDebug($"Waiting for slot at {destinationStationId}");
+
+        // Wait for slot to become available
+        yield return new WaitUntil(() => freedSlot != null);
+
+        // Teleport to the freed slot
+        ItemOwner.transform.position = freedSlot.position;
+        ItemOwner.UpdateCurrentStation(destinationStationId, destinationStation);
+        ItemOwner.UpdateStatus(WorkerStatus.AtStation);
+        ItemOwner.TriggerMovementStarted(destinationStationId);
+
+        LogDebug($"Teleported to freed slot at {destinationStationId}");
+    }
+    #endregion
+
+    #region Cleanup
+    private void OnDestroy()
+    {
+        UnsubscribeFromEvents();
+    }
+    #endregion
+
+    #region Utility
+    private void LogDebug(string message)
+    {
+        if (enableDebugLogs)
+        {
+            Debug.Log($"[Sandevistan] {message}");
+        }
+    }
+    #endregion
 }

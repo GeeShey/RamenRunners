@@ -10,9 +10,9 @@ public class ItemFactoryEditor : Editor
 
         ItemFactory factory = (ItemFactory)target;
 
-        if (GUILayout.Button("Load Dictionary"))
+        if (GUILayout.Button("Load Item Dictionary"))
         {
-            factory.LoadDictionary();
+            factory.LoadItemDictionary();
         }
     }
 }

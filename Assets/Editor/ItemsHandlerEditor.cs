@@ -12,17 +12,17 @@ public class ItemsHandlerEditor : Editor
 
         if (Application.isPlaying)
         {
-            if (ItemFactory.instance == null)
+            if (ItemFactory.Instance == null)
             {
-                EditorGUILayout.HelpBox("ItemFactory.instance is null", MessageType.Warning);
+                EditorGUILayout.HelpBox("ItemFactory.Instance is null", MessageType.Warning);
                 return;
             }
 
-            var itemList = ItemFactory.instance.AllItemTypes;
+            var itemList = ItemFactory.Instance.AllItemTypes;
 
             if (itemList == null || itemList.Count == 0)
             {
-                EditorGUILayout.HelpBox("ItemFactory.itemTypes is empty. Did you call LoadDictionary()?", MessageType.Info);
+                EditorGUILayout.HelpBox("ItemFactory.AllItemTypes is empty. Did you call LoadItemDictionary()?", MessageType.Info);
                 return;
             }
 

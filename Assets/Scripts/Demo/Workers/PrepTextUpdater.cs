@@ -14,21 +14,21 @@ public class PrepTextUpdater : MonoBehaviour
     void Start()
     {
         prepTextCanvas.gameObject.SetActive(false);
-        //binding the onPrepStarted action to the onStartedNewPrep() method
-        workerComponent.onPrepStarted += (prepText) => onStartedNewPrep(prepText);
-        workerComponent.onMovementStarted += (destinationStation) => onFinishedNewPrep();
+        //binding the OnPrepStarted action to the OnStartedNewPrep() method
+        workerComponent.OnPrepStarted += (prepText) => OnStartedNewPrep(prepText);
+        workerComponent.OnMovementStarted += (destinationStation) => OnFinishedNewPrep();
 
     }
 
-    public void onStartedNewPrep(string _prepText)
+    public void OnStartedNewPrep(string prepText)
     {
         prepTextCanvas.gameObject.SetActive(true);
-        background.gameObject.transform.localScale = new Vector3(perCharacterScale * _prepText.Length, background.gameObject.transform.localScale.y, background.gameObject.transform.localScale.z) ;
-        preText.text = _prepText;
+        background.gameObject.transform.localScale = new Vector3(perCharacterScale * prepText.Length, background.gameObject.transform.localScale.y, background.gameObject.transform.localScale.z) ;
+        preText.text = prepText;
 
     }
 
-    public void onFinishedNewPrep()
+    public void OnFinishedNewPrep()
     {
         prepTextCanvas.gameObject.SetActive(false);
     }

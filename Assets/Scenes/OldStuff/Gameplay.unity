@@ -528,7 +528,8 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 826caf81b14079546a141adbcdfbd602, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  AllItemTypes: []
+  enableDebugLogs: 1
+  autoLoadOnStart: 1
 --- !u!114 &118636488
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -2240,14 +2241,13 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 5042563ddf76f8a439af480262e4a2a3, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  CurrentMovementSpeed: 0
-  CurrentStationEfficiency: 0
-  FinishedOrdersCount: 0
-  currentStationId: 7
+  currentMovementSpeed: 0
+  currentStationEfficiency: 0
   currentStatus: 1
-  currentWorkStation: {fileID: 0}
+  currentStationId: 7
   stationProgress: {fileID: 821629706}
   fillInterval: 1
+  equippedUtensils: []
   currentDish: {fileID: 0}
 --- !u!4 &479472872 stripped
 Transform:
@@ -2300,6 +2300,8 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: e378d7e19e34734498f8a9b6495a6e20, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  enableDebugLogs: 0
+  maxEquippedItems: 10
 --- !u!96 &479472876
 TrailRenderer:
   serializedVersion: 3
@@ -2615,7 +2617,7 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 919132149155446097, guid: 249201bbea69eb54fa18b5b7bbdac90b, type: 3}
       propertyPath: m_IsActive
-      value: 1
+      value: 0
       objectReference: {fileID: 0}
     - target: {fileID: 919132149155446097, guid: 249201bbea69eb54fa18b5b7bbdac90b, type: 3}
       propertyPath: m_TagString
@@ -3103,7 +3105,7 @@ MonoBehaviour:
   slots: 1
   standingLocations:
   - {fileID: 595963664}
-  stationTime: 1
+  stationTime: 2
   StationId: 5
 --- !u!1 &661380604
 GameObject:
@@ -3831,6 +3833,8 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: e378d7e19e34734498f8a9b6495a6e20, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  enableDebugLogs: 0
+  maxEquippedItems: 10
 --- !u!114 &776388966
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -3877,14 +3881,13 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 5042563ddf76f8a439af480262e4a2a3, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  CurrentMovementSpeed: 0
-  CurrentStationEfficiency: 0
-  FinishedOrdersCount: 0
-  currentStationId: 7
+  currentMovementSpeed: 0
+  currentStationEfficiency: 0
   currentStatus: 1
-  currentWorkStation: {fileID: 0}
+  currentStationId: 7
   stationProgress: {fileID: 466765700}
   fillInterval: 1
+  equippedUtensils: []
   currentDish: {fileID: 0}
 --- !u!114 &776388969
 MonoBehaviour:
@@ -4601,7 +4604,7 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 919132149155446097, guid: 249201bbea69eb54fa18b5b7bbdac90b, type: 3}
       propertyPath: m_IsActive
-      value: 1
+      value: 0
       objectReference: {fileID: 0}
     - target: {fileID: 919132149155446097, guid: 249201bbea69eb54fa18b5b7bbdac90b, type: 3}
       propertyPath: m_TagString
@@ -5507,7 +5510,7 @@ MonoBehaviour:
   slots: 1
   standingLocations:
   - {fileID: 1288353914}
-  stationTime: 0.5
+  stationTime: 2
   StationId: 6
 --- !u!1001 &1293924088
 PrefabInstance:
@@ -5787,7 +5790,7 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 919132149155446097, guid: 249201bbea69eb54fa18b5b7bbdac90b, type: 3}
       propertyPath: m_IsActive
-      value: 1
+      value: 0
       objectReference: {fileID: 0}
     - target: {fileID: 919132149155446097, guid: 249201bbea69eb54fa18b5b7bbdac90b, type: 3}
       propertyPath: m_TagString
@@ -8428,6 +8431,8 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: e378d7e19e34734498f8a9b6495a6e20, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  enableDebugLogs: 0
+  maxEquippedItems: 10
 --- !u!114 &1960246400
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -8474,14 +8479,13 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 5042563ddf76f8a439af480262e4a2a3, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  CurrentMovementSpeed: 0
-  CurrentStationEfficiency: 0
-  FinishedOrdersCount: 0
-  currentStationId: 7
+  currentMovementSpeed: 0
+  currentStationEfficiency: 0
   currentStatus: 1
-  currentWorkStation: {fileID: 0}
+  currentStationId: 7
   stationProgress: {fileID: 1729798346}
   fillInterval: 1
+  equippedUtensils: []
   currentDish: {fileID: 0}
 --- !u!114 &1960246403
 MonoBehaviour:
@@ -8849,6 +8853,8 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: e378d7e19e34734498f8a9b6495a6e20, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  enableDebugLogs: 0
+  maxEquippedItems: 10
 --- !u!114 &2015540749
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -8895,14 +8901,13 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 5042563ddf76f8a439af480262e4a2a3, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  CurrentMovementSpeed: 0
-  CurrentStationEfficiency: 0
-  FinishedOrdersCount: 0
-  currentStationId: 7
+  currentMovementSpeed: 0
+  currentStationEfficiency: 0
   currentStatus: 1
-  currentWorkStation: {fileID: 0}
+  currentStationId: 7
   stationProgress: {fileID: 1723213910}
   fillInterval: 1
+  equippedUtensils: []
   currentDish: {fileID: 0}
 --- !u!114 &2015540752
 MonoBehaviour:
